@@ -35,11 +35,7 @@
                  (const :tag "posframe (GUI with optional image)" posframe))
   :group 'pomo-cat)
 
-(defvar pomo-cat--timer nil)
-(defvar pomo-cat--cycle-count 0)
-(defvar pomo-cat--current-break-type 'short)
-
-(defconst pomo-cat--ascii-cat
+(defcustom pomo-cat-ascii-cat
   "
 ███████████████████████████
 █                         █
@@ -52,8 +48,13 @@
 █                         █
 ███████████████████████████
 "
-  "ASCII cat shown during breaks.")
+  "ASCII art shown during breaks. Should be a string."
+  :type 'string
+  :group 'pomo-cat)
 
+(defvar pomo-cat--timer nil)
+(defvar pomo-cat--cycle-count 0)
+(defvar pomo-cat--current-break-type 'short)
 (defvar pomo-cat--popon-instance nil)
 
 (defun pomo-cat--clear-cat-display ()
