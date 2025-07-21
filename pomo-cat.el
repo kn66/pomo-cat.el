@@ -27,6 +27,14 @@
   "Number of Pomodoro cycles before a long break."
   :type 'integer)
 
+(defcustom pomo-cat-display-method 'popon
+  "Method to display the cat during breaks.
+- 'popon: Use popon (TTY).
+- 'posframe: Use posframe (GUI + optional image)."
+  :type '(choice (const :tag "popon (text display)" popon)
+                 (const :tag "posframe (GUI with optional image)" posframe))
+  :group 'pomo-cat)
+
 (defvar pomo-cat--timer nil)
 (defvar pomo-cat--cycle-count 0)
 (defvar pomo-cat--current-break-type 'short)
@@ -110,9 +118,17 @@
         (insert-image img)))))
 
 (defun pomo-cat--show-cat ()
-  (if (and (display-graphic-p) pomo-cat-cat-image-path)
-      (pomo-cat--show-image)
-    (pomo-cat--show-ascii-cat)))
+  "Show the cat display according to `pomo-cat-display-method`."
+  (cond
+   ((and (eq pomo-cat-display-method 'posframe)
+         (display-graphic-p)
+         (stringp pomo-cat-cat-image-path)
+         (file-exists-p pomo-cat-cat-image-path))
+    (pomo-cat--show-image))
+   ((eq pomo-cat-display-method 'posframe)
+    (pomo-cat--show-ascii-cat)) ;; fallback to ASCII in GUI
+   (t
+    (pomo-cat--show-ascii-cat)))) ;; default to popon
 
 (defun pomo-cat--start-break ()
   "Start a break (short or long) depending on cycle count."
