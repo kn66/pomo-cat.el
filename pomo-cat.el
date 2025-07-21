@@ -59,7 +59,6 @@
 
 (defun pomo-cat--show-ascii-cat ()
   (cond
-   ;; Terminalではpoponを使う
    ((and (featurep 'popon) (not (display-graphic-p)))
     (let* ((cat-text (if (stringp pomo-cat--ascii-cat)
                          pomo-cat--ascii-cat
@@ -73,7 +72,6 @@
       (when (stringp cat-text)
         (setq pomo-cat--popon-instance
               (popon-create cat-text `(,x . ,y))))))
-   ;; GUIではposframeを使う
    ((and (featurep 'posframe) (display-graphic-p))
     (posframe-show "*pomo-cat*"
                    :string (if (stringp pomo-cat--ascii-cat)
@@ -85,7 +83,6 @@
                    :foreground-color "#ffffff"
                    :width 50
                    :height 10))
-   ;; それ以外はメッセージ表示
    (t
     (message "\n%s" (if (stringp pomo-cat--ascii-cat)
                         pomo-cat--ascii-cat
@@ -97,9 +94,8 @@
              (stringp pomo-cat-cat-image-path)
              (file-exists-p pomo-cat-cat-image-path))
     (let* ((img (create-image pomo-cat-cat-image-path))
-           (width (car (image-size img t)))  ; ピクセル幅
-           (height (cdr (image-size img t))) ; ピクセル高さ
-           ;; posframeのサイズは文字数ベースなので、画像サイズ÷文字サイズで計算
+           (width (car (image-size img t)))
+           (height (cdr (image-size img t)))
            (char-width (frame-char-width))
            (char-height (frame-char-height))
            (cols (ceiling (/ (float width) char-width)))
