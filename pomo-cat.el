@@ -65,36 +65,48 @@
     (popon-kill pomo-cat--popon-instance)
     (setq pomo-cat--popon-instance nil)))
 
+(defun pomo-cat--theme-colors ()
+  "Return a cons of (foreground . background) from current theme, with fallback."
+  (let ((fg (or (face-attribute 'default :foreground nil t) "#ffffff"))
+        (bg (or (face-attribute 'default :background nil t) "#000000")))
+    (cons fg bg)))
+
+(defun pomo-cat--measure-ascii (text)
+  "Measure width and height (columns and lines) of ASCII TEXT."
+  (let* ((lines (split-string text "\n"))
+         (height (length lines))
+         (width (apply #'max 0 (mapcar #'string-width lines))))
+    (cons width height)))
+
 (defun pomo-cat--show-ascii-cat ()
-  (cond
-   ((and (featurep 'popon) (not (display-graphic-p)))
-    (let* ((cat-text (if (stringp pomo-cat--ascii-cat)
-                         pomo-cat--ascii-cat
-                       (format "%s" pomo-cat--ascii-cat)))
-           (frame-width (frame-width))
-           (frame-height (frame-height))
-           (lines (length (split-string cat-text "\n")))
-           (cols (apply #'max (mapcar #'string-width (split-string cat-text "\n"))))
-           (x (max 0 (/ (- frame-width cols) 2)))
-           (y (max 0 (/ (- frame-height lines) 2))))
-      (when (stringp cat-text)
+  (let* ((cat-text (if (stringp pomo-cat-ascii-cat)
+                       pomo-cat-ascii-cat
+                     (format "%s" pomo-cat-ascii-cat)))
+         (size (pomo-cat--measure-ascii cat-text))
+         (cols (car size))
+         (lines (cdr size)))
+    (cond
+     ((and (featurep 'popon) (not (display-graphic-p)))
+      (let* ((frame-width (frame-width))
+             (frame-height (frame-height))
+             (x (max 0 (/ (- frame-width cols) 2)))
+             (y (max 0 (/ (- frame-height lines) 2))))
         (setq pomo-cat--popon-instance
-              (popon-create cat-text `(,x . ,y))))))
-   ((and (featurep 'posframe) (display-graphic-p))
-    (posframe-show "*pomo-cat*"
-                   :string (if (stringp pomo-cat--ascii-cat)
-                               pomo-cat--ascii-cat
-                             (format "%s" pomo-cat--ascii-cat))
-                   :position (point)
-                   :poshandler #'posframe-poshandler-frame-center
-                   :background-color "#1e1e1e"
-                   :foreground-color "#ffffff"
-                   :width 50
-                   :height 10))
-   (t
-    (message "\n%s" (if (stringp pomo-cat--ascii-cat)
-                        pomo-cat--ascii-cat
-                      (format "%s" pomo-cat--ascii-cat))))))
+              (popon-create cat-text `(,x . ,y)))))
+     ((and (featurep 'posframe) (display-graphic-p))
+      (let* ((colors (pomo-cat--theme-colors))
+             (fg (car colors))
+             (bg (cdr colors)))
+        (posframe-show "*pomo-cat*"
+                       :string cat-text
+                       :position (point)
+                       :poshandler #'posframe-poshandler-frame-center
+                       :background-color bg
+                       :foreground-color fg
+                       :width cols
+                       :height lines)))
+     (t
+      (message "\n%s" cat-text)))))
 
 (defun pomo-cat--show-image ()
   (when (and (featurep 'posframe)
@@ -120,15 +132,26 @@
 (defun pomo-cat--show-cat ()
   "Show the cat display according to `pomo-cat-display-method`."
   (cond
+   ;; posframe + image
    ((and (eq pomo-cat-display-method 'posframe)
          (display-graphic-p)
          (stringp pomo-cat-cat-image-path)
          (file-exists-p pomo-cat-cat-image-path))
     (pomo-cat--show-image))
-   ((eq pomo-cat-display-method 'posframe)
-    (pomo-cat--show-ascii-cat)) ;; fallback to ASCII in GUI
+
+   ;; posframe + ascii fallback
+   ((and (eq pomo-cat-display-method 'posframe)
+         (display-graphic-p))
+    (posframe-show "*pomo-cat*"
+                   :string (if (stringp pomo-cat-ascii-cat)
+                               pomo-cat-ascii-cat
+                             (format "%s" pomo-cat-ascii-cat))
+                   :position (point)
+                   :poshandler #'posframe-poshandler-frame-center))
+
+   ;; popon fallback (default)
    (t
-    (pomo-cat--show-ascii-cat)))) ;; default to popon
+    (pomo-cat--show-ascii-cat))))
 
 (defun pomo-cat--start-break ()
   "Start a break (short or long) depending on cycle count."
