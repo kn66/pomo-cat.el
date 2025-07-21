@@ -37,15 +37,15 @@ reminding you to truly “take a break.”
 
 * Screenshot
 
-- posframe
+- (GUI) posframe
 
   [[./screenshots/gui-posframe-ascii.png]]
 
-- popon
+- (Terminal) popon
 
   [[./screenshots/terminal-popon.png]]
 
-- posframe + image
+- (GUI) posframe + image
 
   [[./screenshots/gui-posframe-image.png]]
 
@@ -53,38 +53,80 @@ reminding you to truly “take a break.”
 
 Place =pomo-cat.el= in your `load-path`, and add the following to your init file:
 
-#+begin_emacs-lisp
-(use-package posframe)
-(use-package popon)
+#+begin_src emacs-lisp
+  (use-package posframe)
+  (use-package popon)
 
-(use-package pomo-cat
-:vc ( :url "https://github.com/kn66/pomo-cat.el"
-:rev :newest))
-#+end_emacs-lisp
+  (use-package pomo-cat
+    :vc ( :url "https://github.com/kn66/pomo-cat.el"
+          :rev :newest))
+#+end_src
 
 * Usage
 
 Start the timer:
 
-#+begin_emacs-lisp
-M-x pomo-cat-start
-#+end_emacs-lisp
+#+begin_src emacs-lisp
+  M-x pomo-cat-start
+#+end_src
 
 Stop the timer and hide the cat:
 
-#+begin_emacs-lisp
-M-x pomo-cat-stop
-#+end_emacs-lisp
+#+begin_src emacs-lisp
+  M-x pomo-cat-stop
+#+end_src
 
 * Customization
 
-Use =M-x customize-group RET pomo-cat RET= or set variables directly:
+Use =M-x customize-group RET pomo-cat RET= or set variables directly in your init file.
 
-- `pomo-cat-work-duration-seconds` :: Work session length (default 1500s = 25 min)
-- `pomo-cat-break-duration-seconds` :: Short break length (default 300s = 5 min)
-- `pomo-cat-long-break-duration-seconds` :: Long break length (default 900s = 15 min)
-- `pomo-cat-cycles-before-long-break` :: Number of Pomodoros before a long break
-- `pomo-cat-cat-image-path` :: Optional path to a cat image (for GUI Emacs)
+- `pomo-cat-work-duration-seconds` ::
+  Duration of a single Pomodoro work session, in seconds.
+  Default is 1500 seconds (25 minutes).
+  You can set it to a shorter value for testing, e.g.:
+  #+begin_src emacs-lisp
+    (setq pomo-cat-work-duration-seconds 60) ;; 1 minute work session
+  #+end_src
+
+- `pomo-cat-break-duration-seconds` ::
+  Duration of a short break after each work session, in seconds.
+  Default is 300 seconds (5 minutes).
+  These short breaks occur after each work cycle except the last one before a long break.
+
+- `pomo-cat-long-break-duration-seconds` ::
+  Duration of a long break (after multiple cycles), in seconds.
+  Default is 1200 seconds (20 minutes).
+  Useful for deeper rest after completing several Pomodoros.
+
+- `pomo-cat-cycles-before-long-break` ::
+  Number of completed Pomodoro cycles before a long break is triggered.
+  Default is 4.
+  For example, with the default setting:
+  - You’ll work 4 times for 25 minutes
+  - Take 3 short breaks
+  - And then take a long break after the 4th cycle
+
+- `pomo-cat-cat-image-path` ::
+  File path to a cat image (e.g., PNG) to display during breaks in GUI Emacs.
+  If this is nil or the image doesn't exist, ASCII art will be shown instead.
+  Example:
+  #+begin_src emacs-lisp
+    (setq pomo-cat-cat-image-path "~/Pictures/cats/cute-cat.png")
+  #+end_src
+
+- `pomo-cat-display-method` ::
+  Method used to show the cat on screen.
+  Available options:
+  - `'popon` :: Uses `popon` for terminal-based (TTY) popup display.
+  - `'posframe` :: Uses `posframe` to display the cat in a floating child frame (GUI only).
+  The display method automatically falls back to ASCII in message area if both methods are unavailable.
+
+- `pomo-cat-ascii-cat` ::
+  A string of ASCII art to show when a cat image is not used or unavailable.
+  You can replace it with your own ASCII art:
+  #+begin_src emacs-lisp
+    (setq pomo-cat-ascii-cat " (=^･ω･^=) Take a break!")
+  #+end_src
 
 * Dependencies
 
