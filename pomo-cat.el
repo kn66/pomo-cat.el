@@ -7,15 +7,15 @@
   "Pomodoro timer with cat breaks."
   :group 'productivity)
 
-(defcustom pomo-cat-work-duration-seconds 1500  ; 25分
+(defcustom pomo-cat-work-duration-seconds (* 60 25)
   "Duration of work period in seconds."
   :type 'integer)
 
-(defcustom pomo-cat-break-duration-seconds 300  ; 5分
+(defcustom pomo-cat-break-duration-seconds (* 60 5)
   "Duration of short break in seconds."
   :type 'integer)
 
-(defcustom pomo-cat-long-break-duration-seconds 900  ; 15分
+(defcustom pomo-cat-long-break-duration-seconds (* 60 20)
   "Duration of long break in seconds."
   :type 'integer)
 
