@@ -1,0 +1,104 @@
+* Overview
+
+=pomo-cat.el= is a simple yet charming Pomodoro timer for Emacs.
+Unlike many existing Pomodoro packages that rely on notifications,
+mode-line displays, or logging, =pomo-cat= places an adorable cat in the center
+of your screen during breaks—either as an image or ASCII art.
+
+This playful approach helps you *visually recognize rest periods* and avoid
+overworking or skipping breaks due to overlooked alerts or distraction by timers.
+
+* Motivation
+
+Most existing Pomodoro timers for Emacs focus on features like:
+
+- Desktop or mode-line notifications
+- Logging work/break times
+- Progress indicators
+
+However, in actual use, we found:
+
+- Notifications are easy to miss—especially when deeply focused.
+- Mode-line timers divert attention unnecessarily.
+- Logs are rarely reviewed.
+
+Hence, the need for a *visually engaging and unmistakable break indicator*.
+This package was born to show a cat in the center of the screen during breaks,
+reminding you to truly “take a break.”
+
+* Features
+
+- Pomodoro timer with customizable durations
+- Displays a centered cat using:
+  - An image (on GUI Emacs via `posframe`)
+  - ASCII art (on terminal or fallback)
+- Supports both short and long breaks
+- Lightweight and minimal, no persistent logging
+
+* Screenshot
+
+- posframe
+
+  [[./screenshots/gui-posframe-ascii.png]]
+
+- popon
+
+  [[./screenshots/terminal.png]]
+
+- posframe + image
+
+  [[./screenshots/gui-posframe-image.png]]
+
+* Installation
+
+Place =pomo-cat.el= in your `load-path`, and add the following to your init file:
+
+#+begin_emacs-lisp
+(use-package posframe)
+(use-package popon)
+
+(use-package pomo-cat
+:vc ( :url "https://github.com/kn66/pomo-cat.el"
+:rev :newest))
+#+end_emacs-lisp
+
+* Usage
+
+Start the timer:
+
+#+begin_emacs-lisp
+M-x pomo-cat-start
+#+end_emacs-lisp
+
+Stop the timer and hide the cat:
+
+#+begin_emacs-lisp
+M-x pomo-cat-stop
+#+end_emacs-lisp
+
+* Customization
+
+Use =M-x customize-group RET pomo-cat RET= or set variables directly:
+
+- `pomo-cat-work-duration-seconds` :: Work session length (default 1500s = 25 min)
+- `pomo-cat-break-duration-seconds` :: Short break length (default 300s = 5 min)
+- `pomo-cat-long-break-duration-seconds` :: Long break length (default 900s = 15 min)
+- `pomo-cat-cycles-before-long-break` :: Number of Pomodoros before a long break
+- `pomo-cat-cat-image-path` :: Optional path to a cat image (for GUI Emacs)
+
+* Dependencies
+
+- [[https://github.com/tumashu/posframe][posframe]] (for GUI popups)
+- [[https://codeberg.org/akib/emacs-popon][popon]] (for terminal popups)
+
+The package gracefully degrades:
+- If `posframe` is not available, ASCII art is shown in message buffer or via `popon`.
+- If `popon` is not available, ASCII is printed to minibuffer.
+
+* License
+
+MIT License.
+
+---
+
+Let me know if you'd like this README auto-exported as `README.md` too!
