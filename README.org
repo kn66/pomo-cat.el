@@ -133,14 +133,6 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
 - [[https://github.com/tumashu/posframe][posframe]] (for GUI popups)
 - [[https://codeberg.org/akib/emacs-popon][popon]] (for terminal popups)
 
-The package gracefully degrades:
-- If `posframe` is not available, ASCII art is shown in message buffer or via `popon`.
-- If `popon` is not available, ASCII is printed to minibuffer.
-
 * License
 
 MIT License.
-
----
-
-Let me know if you'd like this README auto-exported as `README.md` too!
