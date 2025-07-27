@@ -78,6 +78,9 @@
 (defvar pomo-cat--popon-instance nil
   "Internal popon instance for text-based cat display.")
 
+(defvar pomo-cat--in-break nil
+  "Indicator if currently in a break.")
+
 (defun pomo-cat--clear-cat-display ()
   "Clear the current cat display, whether posframe or popon."
   (when (featurep 'posframe)
@@ -179,7 +182,8 @@
   (setq pomo-cat--current-break-type
         (if (eq (% pomo-cat--cycle-count pomo-cat-cycles-before-long-break) 0)
             'long
-          'short))
+          'short)
+        pomo-cat--in-break t)
   (let ((duration (if (eq pomo-cat--current-break-type 'long)
                       pomo-cat-long-break-duration-seconds
                     pomo-cat-break-duration-seconds)))
@@ -194,7 +198,8 @@
   (setq pomo-cat--cycle-count (1+ pomo-cat--cycle-count))
   (message "Pomodoro work #%d started!" pomo-cat--cycle-count)
   (setq pomo-cat--timer
-        (run-at-time pomo-cat-work-duration-seconds nil #'pomo-cat--start-break)))
+        (run-at-time pomo-cat-work-duration-seconds nil #'pomo-cat--start-break)
+        pomo-cat--in-break nil))
 
 ;;;###autoload
 (defun pomo-cat-start ()
