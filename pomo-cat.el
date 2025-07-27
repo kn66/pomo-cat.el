@@ -34,6 +34,10 @@
   "Duration of a long break (after several cycles) in seconds."
   :type 'integer)
 
+(defcustom pomo-cat-delay-break-seconds 60
+  "Default delay for unwanted breaks."
+  :type 'integer)
+
 (defcustom pomo-cat-cat-image-path nil
   "Path to a cat image (e.g., PNG) to be shown in GUI. If nil, ASCII art is used."
   :type '(choice (const nil) file))
@@ -217,6 +221,17 @@
   (setq pomo-cat--timer nil)
   (pomo-cat--clear-cat-display)
   (message "Pomodoro stopped."))
+
+;;;###autoload
+(defun pomo-cat-delay-break (&optional seconds)
+  "Delay the current break for `SECONDS'."
+  (interactive "P")
+  (when pomo-cat--in-break
+    (pomo-cat--clear-cat-display)
+    (cancel-timer pomo-cat--timer)
+    (let ((delay (or seconds pomo-cat-delay-break-seconds)))
+      (setq pomo-cat--timer (run-at-time delay nil #'pomo-cat--start-break))
+      (message "Break delayed %ss." delay))))
 
 ;;;###autoload
 (defun pomo-cat-stop-break ()
