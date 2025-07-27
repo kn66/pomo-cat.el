@@ -218,6 +218,15 @@
   (pomo-cat--clear-cat-display)
   (message "Pomodoro stopped."))
 
+;;;###autoload
+(defun pomo-cat-stop-break ()
+  "Simply stop the current break period as if it has finished."
+  (interactive)
+  (when pomo-cat--in-break
+    (pomo-cat--clear-cat-display)
+    (cancel-timer pomo-cat--timer)
+    (pomo-cat--start-work)))
+
 ;; Attempt to auto-set image path if cat.png is bundled with the file
 (unless pomo-cat-cat-image-path
   (when load-file-name
