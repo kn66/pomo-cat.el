@@ -1,0 +1,138 @@
+* Overview
+
+=pomo-cat.el= is a simple yet charming Pomodoro timer for Emacs.
+Unlike many existing Pomodoro packages that rely on notifications,
+mode-line displays, or logging, =pomo-cat= places an adorable cat in the center
+of your screen during breaks—either as an image or ASCII art.
+
+This playful approach helps you *visually recognize rest periods* and avoid
+overworking or skipping breaks due to overlooked alerts or distraction by timers.
+
+* Motivation
+
+Most existing Pomodoro timers for Emacs focus on features like:
+
+- Desktop or mode-line notifications
+- Logging work/break times
+- Progress indicators
+
+However, in actual use, we found:
+
+- Notifications are easy to miss—especially when deeply focused.
+- Mode-line timers divert attention unnecessarily.
+- Logs are rarely reviewed.
+
+Hence, the need for a *visually engaging and unmistakable break indicator*.
+This package was born to show a cat in the center of the screen during breaks,
+reminding you to truly “take a break.”
+
+* Features
+
+- Pomodoro timer with customizable durations
+- Displays a centered cat using:
+  - An image (on GUI Emacs via `posframe`)
+  - ASCII art (on terminal or fallback)
+- Supports both short and long breaks
+- Lightweight and minimal, no persistent logging
+
+* Screenshot
+
+- (GUI) posframe
+
+  [[./screenshots/gui-posframe-ascii.png]]
+
+- (Terminal) popon
+
+  [[./screenshots/terminal-popon.png]]
+
+- (GUI) posframe + image
+
+  [[./screenshots/gui-posframe-image.png]]
+
+* Installation
+
+Place =pomo-cat.el= in your `load-path`, and add the following to your init file:
+
+#+begin_src emacs-lisp
+  (use-package posframe)
+  (use-package popon)
+
+  (use-package pomo-cat
+    :vc ( :url "https://github.com/kn66/pomo-cat.el"
+          :rev :newest))
+#+end_src
+
+* Usage
+
+Start the timer:
+
+#+begin_src emacs-lisp
+  M-x pomo-cat-start
+#+end_src
+
+Stop the timer and hide the cat:
+
+#+begin_src emacs-lisp
+  M-x pomo-cat-stop
+#+end_src
+
+* Customization
+
+Use =M-x customize-group RET pomo-cat RET= or set variables directly in your init file.
+
+- `pomo-cat-work-duration-seconds` ::
+  Duration of a single Pomodoro work session, in seconds.
+  Default is 1500 seconds (25 minutes).
+  You can set it to a shorter value for testing, e.g.:
+  #+begin_src emacs-lisp
+    (setq pomo-cat-work-duration-seconds 60) ;; 1 minute work session
+  #+end_src
+
+- `pomo-cat-break-duration-seconds` ::
+  Duration of a short break after each work session, in seconds.
+  Default is 300 seconds (5 minutes).
+  These short breaks occur after each work cycle except the last one before a long break.
+
+- `pomo-cat-long-break-duration-seconds` ::
+  Duration of a long break (after multiple cycles), in seconds.
+  Default is 1200 seconds (20 minutes).
+  Useful for deeper rest after completing several Pomodoros.
+
+- `pomo-cat-cycles-before-long-break` ::
+  Number of completed Pomodoro cycles before a long break is triggered.
+  Default is 4.
+  For example, with the default setting:
+  - You’ll work 4 times for 25 minutes
+  - Take 3 short breaks
+  - And then take a long break after the 4th cycle
+
+- `pomo-cat-cat-image-path` ::
+  File path to a cat image (e.g., PNG) to display during breaks in GUI Emacs.
+  If this is nil or the image doesn't exist, ASCII art will be shown instead.
+  Example:
+  #+begin_src emacs-lisp
+    (setq pomo-cat-cat-image-path "~/Pictures/cats/cute-cat.png")
+  #+end_src
+
+- `pomo-cat-display-method` ::
+  Method used to show the cat on screen.
+  Available options:
+  - `'popon` :: Uses `popon` for terminal-based (TTY) popup display.
+  - `'posframe` :: Uses `posframe` to display the cat in a floating child frame (GUI only).
+  The display method automatically falls back to ASCII in message area if both methods are unavailable.
+
+- `pomo-cat-ascii-cat` ::
+  A string of ASCII art to show when a cat image is not used or unavailable.
+  You can replace it with your own ASCII art:
+  #+begin_src emacs-lisp
+    (setq pomo-cat-ascii-cat " (=^･ω･^=) Take a break!")
+  #+end_src
+
+* Dependencies
+
+- [[https://github.com/tumashu/posframe][posframe]] (for GUI popups)
+- [[https://codeberg.org/akib/emacs-popon][popon]] (for terminal popups)
+
+* License
+
+MIT License.
