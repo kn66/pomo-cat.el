@@ -70,6 +70,11 @@
   "ASCII art to show when cat image is not available."
   :type 'string)
 
+(defcustom pomo-cat-get-focus nil
+  "Bring emacs' zeroth frame to the front and in focus.
+I.e. to notify the user of a break even if not working in emacs."
+  :type 'boolean)
+
 (defvar pomo-cat--timer nil
   "Internal timer object used for Pomodoro intervals.")
 
@@ -193,6 +198,7 @@
                     pomo-cat-break-duration-seconds)))
     (message "Break started! (%s break)" (symbol-name pomo-cat--current-break-type))
     (pomo-cat--show-cat)
+    (when pomo-cat-get-focus (other-frame 0))
     (setq pomo-cat--timer
           (run-at-time duration nil #'pomo-cat--start-work))))
 
