@@ -37,7 +37,7 @@ reminding you to truly “take a break.”
 
 * Screenshot
 
-- (GUI) posframe
+- (GUI) popon
 
   [[./screenshots/gui-posframe-ascii.png]]
 
@@ -117,7 +117,7 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
 - `pomo-cat-display-method` ::
   Method used to show the cat on screen.
   Available options:
-  - `'popon` :: Uses `popon` for terminal-based (TTY) popup display.
+  - `'popon` (default) :: Uses `popon` for terminal-based (TTY) popup display.
   - `'posframe` :: Uses `posframe` to display the cat in a floating child frame (GUI only).
   The display method automatically falls back to ASCII in message area if both methods are unavailable.
 
@@ -130,8 +130,8 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
 
 * Dependencies
 
-- [[https://github.com/tumashu/posframe][posframe]] (for GUI popups)
 - [[https://codeberg.org/akib/emacs-popon][popon]] (for terminal popups)
+- [[https://github.com/tumashu/posframe][posframe]] (for GUI popups)
 
 * License
 
