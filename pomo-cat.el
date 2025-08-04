@@ -3,7 +3,7 @@
 ;; Author: Nobuyuki Kamimoto
 ;; Version: 1.0
 ;; Package-Requires: ((emacs "27.1") (popon "0.1") (posframe "1.1.1"))
-;; Keywords: productivity, time, pomodoro, cat
+;; Keywords: convenience, tools, calendar
 ;; URL: https://github.com/kn66/pomo-cat.el
 
 ;;; Commentary:
