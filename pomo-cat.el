@@ -49,8 +49,8 @@
 (defcustom pomo-cat-display-method 'popon
   "Display method for the cat during breaks.
 
-- 'popon: Uses popon (recommended for terminal).
-- 'posframe: Uses posframe (recommended for GUI; supports optional images)."
+- \\='popon: Uses popon (recommended for terminal).
+- \\='posframe: Uses posframe (recommended for GUI; supports optional images)."
   :type '(choice (const :tag "popon (terminal)" popon)
                  (const :tag "posframe (GUI)" posframe)))
 
@@ -82,7 +82,7 @@ I.e. to notify the user of a break even if not working in Emacs."
   "Number of completed Pomodoro work sessions.")
 
 (defvar pomo-cat--current-break-type 'short
-  "Current break type: 'short or 'long.")
+  "Current break type: \\='short or \\='long.")
 
 (defvar pomo-cat--popon-instance nil
   "Internal popon instance for text-based cat display.")
