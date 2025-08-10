@@ -58,7 +58,7 @@ Place =pomo-cat.el= in your `load-path`, and add the following to your init file
   (use-package popon)
 
   (use-package pomo-cat
-    :vc ( :url "https://github.com/kn66/pomo-cat.el"
+    :vc ( :url "https://github.com/kn66/pomo-cat.el.git"
           :rev :newest))
 #+end_src
 
