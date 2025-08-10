@@ -5,6 +5,7 @@
 ;; Package-Requires: ((emacs "27.1") (popon "0.1") (posframe "1.1.1"))
 ;; Keywords: convenience, tools, calendar
 ;; URL: https://github.com/kn66/pomo-cat.el
+;; SPDX-License-Identifier: MIT
 
 ;;; Commentary:
 
@@ -15,7 +16,7 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'posframe nil t))
+(require 'posframe nil t)
 (require 'popon nil t)
 
 (defgroup pomo-cat nil
@@ -230,7 +231,7 @@ I.e. to notify the user of a break even if not working in Emacs."
 
 ;;;###autoload
 (defun pomo-cat-delay-break (&optional seconds)
-  "Delay the current break for `SECONDS'."
+  "Delay the current break for SECONDS."
   (interactive "P")
   (when pomo-cat--in-break
     (pomo-cat--clear-cat-display)
