@@ -51,15 +51,11 @@ reminding you to truly “take a break.”
 
 * Installation
 
-Place =pomo-cat.el= in your `load-path`, and add the following to your init file:
+The package is available on MELPA. Dependencies include ~posframe~ and ~popon~.
 
 #+begin_src emacs-lisp
-  (use-package posframe)
-  (use-package popon)
-
   (use-package pomo-cat
-    :vc ( :url "https://github.com/kn66/pomo-cat.el.git"
-          :rev :newest))
+    :ensure t)
 #+end_src
 
 * Usage
