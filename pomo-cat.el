@@ -52,11 +52,12 @@
 
 - \\='popon: Uses popon (recommended for terminal).
 - \\='posframe: Uses posframe (recommended for GUI; supports optional images)."
-  :type '(choice (const :tag "popon (terminal)" popon)
-                 (const :tag "posframe (GUI)" posframe)))
+  :type
+  '(choice
+    (const :tag "popon (terminal)" popon)
+    (const :tag "posframe (GUI)" posframe)))
 
-(defcustom pomo-cat-ascii-cat
-  "
+(defcustom pomo-cat-ascii-cat "
 ███████████████████████████
 █                         █
 █      Take a break       █
@@ -102,8 +103,10 @@ I.e. to notify the user of a break even if not working in Emacs."
 
 (defun pomo-cat--theme-colors ()
   "Return a (foreground . background) cons cell based on current theme."
-  (let ((fg (or (face-attribute 'default :foreground nil t) "#ffffff"))
-        (bg (or (face-attribute 'default :background nil t) "#000000")))
+  (let ((fg
+         (or (face-attribute 'default :foreground nil t) "#ffffff"))
+        (bg
+         (or (face-attribute 'default :background nil t) "#000000")))
     (cons fg bg)))
 
 (defun pomo-cat--measure-ascii (text)
@@ -115,9 +118,10 @@ I.e. to notify the user of a break even if not working in Emacs."
 
 (defun pomo-cat--show-ascii-cat ()
   "Display ASCII art of the cat using `popon` or `posframe`."
-  (let* ((cat-text (if (stringp pomo-cat-ascii-cat)
-                       pomo-cat-ascii-cat
-                     (format "%s" pomo-cat-ascii-cat)))
+  (let* ((cat-text
+          (if (stringp pomo-cat-ascii-cat)
+              pomo-cat-ascii-cat
+            (format "%s" pomo-cat-ascii-cat)))
          (size (pomo-cat--measure-ascii cat-text))
          (cols (car size))
          (lines (cdr size)))
@@ -133,14 +137,15 @@ I.e. to notify the user of a break even if not working in Emacs."
       (let* ((colors (pomo-cat--theme-colors))
              (fg (car colors))
              (bg (cdr colors)))
-        (posframe-show "*pomo-cat*"
-                       :string cat-text
-                       :position (point)
-                       :poshandler #'posframe-poshandler-frame-center
-                       :background-color bg
-                       :foreground-color fg
-                       :width cols
-                       :height lines)))
+        (posframe-show
+         "*pomo-cat*"
+         :string cat-text
+         :position (point)
+         :poshandler #'posframe-poshandler-frame-center
+         :background-color bg
+         :foreground-color fg
+         :width cols
+         :height lines)))
      (t
       (message "\n%s" cat-text)))))
 
@@ -157,11 +162,12 @@ I.e. to notify the user of a break even if not working in Emacs."
            (char-height (frame-char-height))
            (cols (ceiling (/ (float width) char-width)))
            (lines (ceiling (/ (float height) char-height))))
-      (posframe-show "*pomo-cat*"
-                     :string ""
-                     :poshandler #'posframe-poshandler-frame-center
-                     :width cols
-                     :height lines)
+      (posframe-show
+       "*pomo-cat*"
+       :string ""
+       :poshandler #'posframe-poshandler-frame-center
+       :width cols
+       :height lines)
       (with-current-buffer "*pomo-cat*"
         (erase-buffer)
         (insert-image img)))))
@@ -175,31 +181,37 @@ I.e. to notify the user of a break even if not working in Emacs."
          (file-exists-p pomo-cat-cat-image-path))
     (pomo-cat--show-image))
 
-   ((and (eq pomo-cat-display-method 'posframe)
-         (display-graphic-p))
-    (posframe-show "*pomo-cat*"
-                   :string (if (stringp pomo-cat-ascii-cat)
-                               pomo-cat-ascii-cat
-                             (format "%s" pomo-cat-ascii-cat))
-                   :position (point)
-                   :poshandler #'posframe-poshandler-frame-center))
+   ((and (eq pomo-cat-display-method 'posframe) (display-graphic-p))
+    (posframe-show
+     "*pomo-cat*"
+     :string
+     (if (stringp pomo-cat-ascii-cat)
+         pomo-cat-ascii-cat
+       (format "%s" pomo-cat-ascii-cat))
+     :position (point)
+     :poshandler #'posframe-poshandler-frame-center))
 
    (t
     (pomo-cat--show-ascii-cat))))
 
 (defun pomo-cat--start-break ()
   "Begin a short or long break and show cat display."
-  (setq pomo-cat--current-break-type
-        (if (eq (% pomo-cat--cycle-count pomo-cat-cycles-before-long-break) 0)
-            'long
-          'short)
-        pomo-cat--in-break t)
-  (let ((duration (if (eq pomo-cat--current-break-type 'long)
-                      pomo-cat-long-break-duration-seconds
-                    pomo-cat-break-duration-seconds)))
-    (message "Break started! (%s break)" (symbol-name pomo-cat--current-break-type))
+  (setq
+   pomo-cat--current-break-type
+   (if (eq
+        (% pomo-cat--cycle-count pomo-cat-cycles-before-long-break) 0)
+       'long
+     'short)
+   pomo-cat--in-break t)
+  (let ((duration
+         (if (eq pomo-cat--current-break-type 'long)
+             pomo-cat-long-break-duration-seconds
+           pomo-cat-break-duration-seconds)))
+    (message "Break started! (%s break)"
+             (symbol-name pomo-cat--current-break-type))
     (pomo-cat--show-cat)
-    (when pomo-cat-get-focus (other-frame 0))
+    (when pomo-cat-get-focus
+      (other-frame 0))
     (setq pomo-cat--timer
           (run-at-time duration nil #'pomo-cat--start-work))))
 
@@ -208,9 +220,11 @@ I.e. to notify the user of a break even if not working in Emacs."
   (pomo-cat--clear-cat-display)
   (setq pomo-cat--cycle-count (1+ pomo-cat--cycle-count))
   (message "Pomodoro work #%d started!" pomo-cat--cycle-count)
-  (setq pomo-cat--timer
-        (run-at-time pomo-cat-work-duration-seconds nil #'pomo-cat--start-break)
-        pomo-cat--in-break nil))
+  (setq
+   pomo-cat--timer
+   (run-at-time
+    pomo-cat-work-duration-seconds nil #'pomo-cat--start-break)
+   pomo-cat--in-break nil))
 
 ;;;###autoload
 (defun pomo-cat-start ()
@@ -241,7 +255,8 @@ I.e. to notify the user of a break even if not working in Emacs."
     (pomo-cat--clear-cat-display)
     (cancel-timer pomo-cat--timer)
     (let ((delay (or seconds pomo-cat-delay-break-seconds)))
-      (setq pomo-cat--timer (run-at-time delay nil #'pomo-cat--start-break))
+      (setq pomo-cat--timer
+            (run-at-time delay nil #'pomo-cat--start-break))
       (message "Break delayed %ss." delay))))
 
 ;;;###autoload
@@ -257,7 +272,8 @@ I.e. to notify the user of a break even if not working in Emacs."
 (unless pomo-cat-cat-image-path
   (when load-file-name
     (setq pomo-cat-cat-image-path
-          (expand-file-name "cat.png" (file-name-directory load-file-name)))))
+          (expand-file-name "cat.png"
+                            (file-name-directory load-file-name)))))
 
 (provide 'pomo-cat)
 
