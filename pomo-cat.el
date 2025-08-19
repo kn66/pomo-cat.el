@@ -243,7 +243,10 @@ I.e. to notify the user of a break even if not working in Emacs."
   (interactive)
   (when pomo-cat--timer
     (cancel-timer pomo-cat--timer))
-  (setq pomo-cat--timer nil)
+  (setq pomo-cat--timer nil
+        pomo-cat--cycle-count 0
+        pomo-cat--in-break nil
+        pomo-cat--current-break-type 'short)
   (pomo-cat--clear-cat-display)
   (message "Pomodoro stopped."))
 
