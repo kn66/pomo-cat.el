@@ -216,6 +216,10 @@ I.e. to notify the user of a break even if not working in Emacs."
 (defun pomo-cat-start ()
   "Start the Pomodoro timer."
   (interactive)
+  ;; Stop any existing timer and clear display
+  (when pomo-cat--timer
+    (cancel-timer pomo-cat--timer))
+  (pomo-cat--clear-cat-display)
   (setq pomo-cat--cycle-count 0)
   (pomo-cat--start-work))
 
