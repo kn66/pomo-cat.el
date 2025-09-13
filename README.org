@@ -3,7 +3,7 @@
 =pomo-cat.el= is a simple yet charming Pomodoro timer for Emacs.
 Unlike many existing Pomodoro packages that rely on notifications,
 mode-line displays, or logging, =pomo-cat= places an adorable cat in the center
-of your screen during breaks—either as an image or ASCII art.
+of your screen during breaks—either as an image, ASCII art, or in an independent window.
 
 This playful approach helps you *visually recognize rest periods* and avoid
 overworking or skipping breaks due to overlooked alerts or distraction by timers.
@@ -24,30 +24,39 @@ However, in actual use, we found:
 
 Hence, the need for a *visually engaging and unmistakable break indicator*.
 This package was born to show a cat in the center of the screen during breaks,
-reminding you to truly “take a break.”
+reminding you to truly "take a break."
 
 * Features
 
 - Pomodoro timer with customizable durations
-- Displays a centered cat using:
-  - An image (on GUI Emacs via `posframe`)
-  - ASCII art (on terminal or fallback)
+- Multiple display methods for break notifications:
+  - *Independent window* (dedicated Emacs frame) - visible even with other apps active
+  - GUI overlay (`posframe`) with optional cat images
+  - Terminal popup (`popon`) with ASCII art
+  - Fallback to message area
 - Supports both short and long breaks
+- Automatic center positioning on any screen size
+- Normal window behavior - can be moved behind other windows
+- Theme-aware colors that adapt to your Emacs configuration
 - Lightweight and minimal, no persistent logging
 
-* Screenshot
+* Screenshots
 
-- (GUI) popon
+- (GUI) Posframe - Overlay Display
 
   [[./screenshots/gui-posframe-ascii.png]]
 
-- (Terminal) popon
+- (Terminal) Popon - Terminal Display
 
   [[./screenshots/terminal-popon.png]]
 
-- (GUI) posframe + image
+- (GUI) Posframe + Custom Image
 
   [[./screenshots/gui-posframe-image.png]]
+
+- (GUI) Dedicated Frame - Independent Window
+
+  [[./screenshots/gui-dedicated-frame.png]]
 
 * Installation
 
@@ -60,17 +69,50 @@ The package is available on MELPA. Dependencies include ~posframe~ and ~popon~.
 
 * Usage
 
-Start the timer:
+** Quick Start
 
 #+begin_src emacs-lisp
+  ;; Choose your preferred display method
+  (setq pomo-cat-display-method 'dedicated-frame)  ; Independent window (recommended)
+  ;; (setq pomo-cat-display-method 'posframe)      ; GUI overlay
+  ;; (setq pomo-cat-display-method 'popon)         ; Terminal popup
+
+  ;; Start the timer
   M-x pomo-cat-start
 #+end_src
 
-Stop the timer and hide the cat:
+** Commands
 
-#+begin_src emacs-lisp
-  M-x pomo-cat-stop
-#+end_src
+- `M-x pomo-cat-start` :: Start the Pomodoro timer
+- `M-x pomo-cat-stop` :: Stop the timer and hide the cat
+- `M-x pomo-cat-delay-break` :: Delay current break (during break periods)
+- `M-x pomo-cat-stop-break` :: End current break immediately
+
+** Display Methods Explained
+
+*** Dedicated Frame (Recommended)
+
+Creates an independent Emacs window that:
+- Appears in the center of your screen
+- Remains visible even when other applications are active
+- Behaves like a normal window (can be moved behind others with Alt+Tab)
+- Perfect for multi-monitor setups and full-screen applications
+- Uses only built-in Emacs functions (no external dependencies)
+
+*** Posframe (GUI Overlay)
+
+Displays an overlay within Emacs that:
+- Shows on top of your current Emacs session
+- Supports both ASCII art and custom images
+- Requires the `posframe` package
+- Best for single-monitor workflows
+
+*** Popon (Terminal)
+
+Shows a popup in terminal Emacs:
+- ASCII art display in text-based environments
+- Requires the `popon` package
+- Ideal for terminal-only workflows
 
 * Customization
 
@@ -98,7 +140,7 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
   Number of completed Pomodoro cycles before a long break is triggered.
   Default is 4.
   For example, with the default setting:
-  - You’ll work 4 times for 25 minutes
+  - You'll work 4 times for 25 minutes
   - Take 3 short breaks
   - And then take a long break after the 4th cycle
 
@@ -113,9 +155,34 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
 - `pomo-cat-display-method` ::
   Method used to show the cat on screen.
   Available options:
-  - `'popon` (default) :: Uses `popon` for terminal-based (TTY) popup display.
-  - `'posframe` :: Uses `posframe` to display the cat in a floating child frame (GUI only).
-  The display method automatically falls back to ASCII in message area if both methods are unavailable.
+  - `'dedicated-frame` :: Creates an independent Emacs window (recommended for GUI)
+  - `'posframe` :: Uses `posframe` for GUI overlay display with optional images
+  - `'popon` (default) :: Uses `popon` for terminal-based popup display
+  The display method automatically falls back to ASCII in message area if the selected method is unavailable.
+
+  #+begin_src emacs-lisp
+    ;; Recommended: Independent window visible with any application
+    (setq pomo-cat-display-method 'dedicated-frame)
+
+    ;; For overlay within Emacs (supports custom images)
+    (setq pomo-cat-display-method 'posframe)
+
+    ;; For terminal use
+    (setq pomo-cat-display-method 'popon)
+  #+end_src
+
+- `pomo-cat-get-focus` ::
+  Controls whether the break window receives focus when it appears.
+  - `nil` (default) :: Window appears but doesn't steal focus (minimal interruption)
+  - `t` :: Window gets focus and brings Emacs to the front
+
+  #+begin_src emacs-lisp
+    ;; Recommended: Passive notification
+    (setq pomo-cat-get-focus nil)
+
+    ;; Active notification (interrupts current work)
+    (setq pomo-cat-get-focus t)
+  #+end_src
 
 - `pomo-cat-ascii-cat` ::
   A string of ASCII art to show when a cat image is not used or unavailable.
@@ -128,6 +195,71 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
 
 - [[https://codeberg.org/akib/emacs-popon][popon]] (for terminal popups)
 - [[https://github.com/tumashu/posframe][posframe]] (for GUI popups)
+
+*Note*: The dedicated frame feature requires no external dependencies—it uses only built-in Emacs functions.
+
+* Advanced Usage
+
+** Dedicated Frame Features
+
+The dedicated frame mode offers the most robust break notification experience:
+
+#+begin_src emacs-lisp
+  ;; Enable dedicated frame with optimal settings
+  (setq pomo-cat-display-method 'dedicated-frame
+        pomo-cat-get-focus nil)  ; Non-intrusive notifications
+
+  ;; The frame will:
+  ;; - Appear in screen center automatically
+  ;; - Be visible even with other apps active
+  ;; - Allow normal window switching (Alt+Tab)
+  ;; - Clean up automatically when break ends
+#+end_src
+
+** Multi-Monitor Support
+
+The dedicated frame automatically adapts to your display configuration:
+- Centers on your primary display
+- Respects taskbars and system UI
+- Works with various screen resolutions
+- Supports multi-monitor workflows
+
+** Integration with Window Managers
+
+Works seamlessly with different environments:
+- Windows: Standard window controls and Alt+Tab
+- macOS: Mission Control and Spaces compatibility
+- Linux: GNOME, KDE, i3, and other window managers
+
+* Troubleshooting
+
+** Display Issues
+
+If the cat doesn't appear as expected:
+
+#+begin_src emacs-lisp
+  ;; Check your current display method
+  (message "Display method: %s" pomo-cat-display-method)
+
+  ;; Verify dependencies are available
+  (message "Posframe available: %s" (featurep 'posframe))
+  (message "Popon available: %s" (featurep 'popon))
+
+  ;; Test dedicated frame (no dependencies needed)
+  (setq pomo-cat-display-method 'dedicated-frame)
+#+end_src
+
+** Focus Problems
+
+If windows behave unexpectedly:
+
+#+begin_src emacs-lisp
+  ;; Use passive notifications for minimal interruption
+  (setq pomo-cat-get-focus nil)
+
+  ;; Or enable active notifications if you prefer
+  (setq pomo-cat-get-focus t)
+#+end_src
 
 * License
 

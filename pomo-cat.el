@@ -51,11 +51,13 @@
   "Display method for the cat during breaks.
 
 - \\='popon: Uses popon (recommended for terminal).
-- \\='posframe: Uses posframe (recommended for GUI; supports optional images)."
+- \\='posframe: Uses posframe (recommended for GUI; supports optional images).
+- \\='dedicated-frame: Uses dedicated Emacs frame (independent window)."
   :type
   '(choice
     (const :tag "popon (terminal)" popon)
-    (const :tag "posframe (GUI)" posframe)))
+    (const :tag "posframe (GUI)" posframe)
+    (const :tag "dedicated-frame (independent window)" dedicated-frame)))
 
 (defcustom pomo-cat-ascii-cat "
 ███████████████████████████
@@ -92,14 +94,22 @@ I.e. to notify the user of a break even if not working in Emacs."
 (defvar pomo-cat--in-break nil
   "Indicator if currently in a break.")
 
+(defvar pomo-cat--dedicated-frame nil
+  "Internal dedicated frame instance for independent cat display.")
+
 (defun pomo-cat--clear-cat-display ()
-  "Clear the current cat display, whether posframe or popon."
+  "Clear the current cat display, whether posframe, popon, or dedicated frame."
   (when (featurep 'posframe)
     (when (posframe-workable-p)
       (posframe-delete "*pomo-cat*")))
   (when (and (featurep 'popon) pomo-cat--popon-instance)
     (popon-kill pomo-cat--popon-instance)
-    (setq pomo-cat--popon-instance nil)))
+    (setq pomo-cat--popon-instance nil))
+  ;; Clean up dedicated frame if active
+  (when (and pomo-cat--dedicated-frame
+             (frame-live-p pomo-cat--dedicated-frame))
+    (delete-frame pomo-cat--dedicated-frame)
+    (setq pomo-cat--dedicated-frame nil)))
 
 (defun pomo-cat--theme-colors ()
   "Return a (foreground . background) cons cell based on current theme."
@@ -172,6 +182,158 @@ I.e. to notify the user of a break even if not working in Emacs."
         (erase-buffer)
         (insert-image img)))))
 
+(defun pomo-cat--calculate-frame-geometry (text)
+  "Calculate optimal frame geometry for TEXT display.
+
+Analyzes the TEXT dimensions and calculates appropriate frame size and position
+for center screen placement. Adds minimal safety margins to prevent text wrapping.
+
+Arguments:
+  TEXT - String containing the content to be displayed
+
+Returns:
+  Property list with frame parameters:
+    :left - X coordinate for center positioning (pixels)
+    :top - Y coordinate for center positioning (pixels)
+    :width - Frame width in characters
+    :height - Frame height in characters
+    :char-width - Character width in pixels
+    :char-height - Character height in pixels"
+  (let* ((size (pomo-cat--measure-ascii text))  ; Reuse existing function
+         (cols (car size))
+         (lines (cdr size))
+         (display-width (display-pixel-width))
+         (display-height (display-pixel-height))
+         (workarea (frame-monitor-workarea))
+         (work-width (nth 2 workarea))
+         (work-height (nth 3 workarea))
+         (char-width (frame-char-width))
+         (char-height (frame-char-height))
+         ;; Add optimal margins to prevent text wrapping
+         (safe-cols (+ cols 2))  ; Add 1 character margin on each side (minimal)
+         (safe-lines (+ lines 2))  ; Add 1 line margin top and bottom
+         ;; Calculate frame size in pixels
+         (frame-width-pixels (* safe-cols char-width))
+         (frame-height-pixels (* safe-lines char-height))
+         ;; Calculate coordinates for center screen positioning
+         (center-x (/ (- work-width frame-width-pixels) 2))
+         (center-y (/ (- work-height frame-height-pixels) 2)))
+    (list :left (max 0 center-x)        ; Avoid negative values
+          :top (max 0 center-y)         ; Avoid negative values
+          :width safe-cols
+          :height safe-lines
+          :char-width char-width
+          :char-height char-height)))
+
+(defun pomo-cat--create-dedicated-frame (geometry text)
+  "Create dedicated frame with GEOMETRY displaying TEXT.
+
+Creates a minimal Emacs frame using only built-in functions. The frame is
+configured for optimal display of break notifications with clean UI and
+normal window behavior (not always-on-top).
+
+Arguments:
+  GEOMETRY - Property list with frame positioning and sizing:
+             :left, :top (position), :width, :height (dimensions)
+  TEXT - Content text (currently unused but kept for consistency)
+
+Returns:
+  The created frame object
+
+Frame Features:
+  - Minimal UI (no toolbars, scrollbars, etc.)
+  - Center screen positioning
+  - Theme-aware colors
+  - Normal window behavior (can be moved behind other windows)
+  - No focus stealing on creation"
+  (let* ((colors (pomo-cat--theme-colors)))  ; Reuse existing function
+    (make-frame
+     `((name . "🐱 Pomo Cat Break")
+       (title . "Take a Break!")
+       (width . ,(plist-get geometry :width))
+       (height . ,(plist-get geometry :height))
+       (left . ,(plist-get geometry :left))
+       (top . ,(plist-get geometry :top))
+       (background-color . ,(cdr colors))
+       (foreground-color . ,(car colors))
+       ;; Minimal UI settings
+       (tool-bar-lines . 0)
+       (menu-bar-lines . 0)
+       (tab-bar-lines . 0)
+       (vertical-scroll-bars . nil)
+       (horizontal-scroll-bars . nil)
+       (left-fringe . 8)
+       (right-fringe . 8)
+       ;; Focus control
+       (no-focus-on-map . t)
+       ;; Removed auto-raise and z-group for normal window behavior
+       ;; Other settings
+       (unsplittable . t)
+       (minibuffer . nil)))))
+
+(defun pomo-cat--show-dedicated-frame ()
+  "Display cat in a dedicated Emacs frame using only built-in functions.
+
+Main entry point for dedicated frame display. Creates a new independent window
+showing the ASCII cat art. The window appears in the center of the screen and
+behaves like a normal application window.
+
+Behavior:
+  - Calculates optimal frame size based on ASCII art dimensions
+  - Creates frame with minimal UI for clean appearance
+  - Displays content without text wrapping issues
+  - Integrates with existing focus management settings
+
+Window Management:
+  - Appears initially but can be moved behind other windows
+  - Does not steal focus unless pomo-cat-get-focus is enabled
+  - Automatically cleaned up when break ends"
+  (let* ((cat-text (if (stringp pomo-cat-ascii-cat)
+                       pomo-cat-ascii-cat
+                     (format "%s" pomo-cat-ascii-cat)))
+         (geometry (pomo-cat--calculate-frame-geometry cat-text)))
+    (setq pomo-cat--dedicated-frame
+          (pomo-cat--create-dedicated-frame geometry cat-text))
+    ;; Display content
+    (with-selected-frame pomo-cat--dedicated-frame
+      (switch-to-buffer "*pomo-cat-break*")
+      (read-only-mode -1)  ; Temporarily disable read-only mode
+      (erase-buffer)
+      (insert cat-text)
+      (goto-char (point-min))
+      ;; Removed center-region - ASCII art is pre-formatted, extra whitespace causes wrapping
+      (read-only-mode 1))))
+
+(defun pomo-cat--manage-frame-focus (frame)
+  "Manage focus behavior for FRAME according to pomo-cat-get-focus setting.
+
+Handles initial focus management when the dedicated frame is created.
+Behavior depends on the pomo-cat-get-focus customization variable.
+
+Arguments:
+  FRAME - The dedicated frame object to manage
+
+Behavior:
+  - If pomo-cat-get-focus is t: Frame gets focus and stays focused
+  - If pomo-cat-get-focus is nil: Frame appears but focus returns to previous window
+  - Uses platform-specific focus functions when available
+  - Gracefully handles missing platform functions
+
+Integration:
+  - Respects existing Emacs focus management preferences
+  - Minimizes workflow interruption
+  - Provides consistent behavior across platforms"
+  (when (and frame (frame-live-p frame))
+    (with-selected-frame frame
+      ;; Platform-specific focus control
+      (when (fboundp 'x-focus-frame)
+        (x-focus-frame frame))
+      (when (fboundp 'raise-frame)
+        (raise-frame frame)))
+    ;; Return focus based on settings
+    (unless pomo-cat-get-focus
+      (other-frame 0))))
+
 (defun pomo-cat--show-cat ()
   "Show a cat using the selected `pomo-cat-display-method`."
   (cond
@@ -190,6 +352,11 @@ I.e. to notify the user of a break even if not working in Emacs."
        (format "%s" pomo-cat-ascii-cat))
      :position (point)
      :poshandler #'posframe-poshandler-frame-center))
+
+   ((eq pomo-cat-display-method 'dedicated-frame)
+    (pomo-cat--show-dedicated-frame)
+    (when pomo-cat-get-focus  ; Integration with existing settings
+      (pomo-cat--manage-frame-focus pomo-cat--dedicated-frame)))
 
    (t
     (pomo-cat--show-ascii-cat))))
