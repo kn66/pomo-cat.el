@@ -73,7 +73,7 @@ The package is available on MELPA. Dependencies include ~posframe~ and ~popon~.
 
 #+begin_src emacs-lisp
   ;; Choose your preferred display method
-  (setq pomo-cat-display-method 'dedicated-frame)  ; Independent window (recommended)
+  (setq pomo-cat-display-method 'dedicated-frame)  ; Independent window
   ;; (setq pomo-cat-display-method 'posframe)      ; GUI overlay
   ;; (setq pomo-cat-display-method 'popon)         ; Terminal popup
 
@@ -90,7 +90,7 @@ The package is available on MELPA. Dependencies include ~posframe~ and ~popon~.
 
 ** Display Methods Explained
 
-*** Dedicated Frame (Recommended)
+*** Dedicated Frame
 
 Creates an independent Emacs window that:
 - Appears in the center of your screen
@@ -155,13 +155,13 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
 - `pomo-cat-display-method` ::
   Method used to show the cat on screen.
   Available options:
-  - `'dedicated-frame` :: Creates an independent Emacs window (recommended for GUI)
+  - `'dedicated-frame` :: Creates an independent Emacs window
   - `'posframe` :: Uses `posframe` for GUI overlay display with optional images
   - `'popon` (default) :: Uses `popon` for terminal-based popup display
   The display method automatically falls back to ASCII in message area if the selected method is unavailable.
 
   #+begin_src emacs-lisp
-    ;; Recommended: Independent window visible with any application
+    ;; Independent window visible with any application
     (setq pomo-cat-display-method 'dedicated-frame)
 
     ;; For overlay within Emacs (supports custom images)
@@ -177,7 +177,7 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
   - `t` :: Window gets focus and brings Emacs to the front
 
   #+begin_src emacs-lisp
-    ;; Recommended: Passive notification
+    ;; Passive notification (default)
     (setq pomo-cat-get-focus nil)
 
     ;; Active notification (interrupts current work)
