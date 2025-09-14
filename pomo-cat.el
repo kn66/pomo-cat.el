@@ -2,7 +2,7 @@
 
 ;; Author: Nobuyuki Kamimoto
 ;; Version: 1.0
-;; Package-Requires: ((emacs "27.1") (popon "0.1") (posframe "1.1.1"))
+;; Package-Requires: ((emacs "27.1") (popon "0.13") (posframe "1.1.1"))
 ;; Keywords: convenience, tools, calendar
 ;; URL: https://github.com/kn66/pomo-cat.el
 ;; SPDX-License-Identifier: MIT
