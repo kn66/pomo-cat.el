@@ -171,10 +171,10 @@ Returns VALUE if valid, otherwise returns a sensible default and warns."
 
 (defun pomo-cat--cancel-timer ()
   "Safely cancel the current timer if it exists."
-  (let ((timer (pomo-cat--state-get :timer)))
-    (when (and timer (timerp timer))
-      (cancel-timer timer)
-      (pomo-cat--state-set :timer nil))))
+  (when-let* ((timer (pomo-cat--state-get :timer))
+              ( (timerp timer) ))
+    (cancel-timer timer)
+    (pomo-cat--state-set :timer nil)))
 
 (defun pomo-cat--schedule-timer (seconds callback)
   "Schedule CALLBACK to run after SECONDS, replacing any existing timer.
@@ -207,12 +207,32 @@ This ensures only one timer is active at a time."
 ;;
 ;; Common functions for display methods.
 
+(defsubst pomo-cat--format-duration (seconds)
+  "Format elapsed time as SECONDS."
+  (format-seconds "%hh %mm %z"
+                  (* 60 (round seconds 60))))
+
+(require 'time-date)
+
+(defsubst pomo-cat--format-end-time (end-time)
+  "Display END-TIME either as remaining time or an end time."
+  (let* ((recent   (time-add nil (* 60 60 2))))  ;; 2 hours
+    (if (time-less-p recent end-time)
+        (concat "until "
+                (format-time-string "%I:%M %p" end-time))
+      (concat "for another "
+              (pomo-cat--format-duration
+               (float-time (time-subtract end-time nil)))))))
+
 (defun pomo-cat--theme-colors ()
   "Return a (foreground . background) cons cell based on current theme."
-  (let ((fg
-         (or (face-attribute 'default :foreground nil t) "#ffffff"))
-        (bg
-         (or (face-attribute 'default :background nil t) "#000000")))
+  (let* ((mode  (frame-parameter nil 'background-mode))
+         (fg    (or (face-attribute 'default :foreground nil t)
+                    (frame-parameter nil 'foreground-color)
+                    (if (eq mode 'dark) "#ffffff" "#000000")))
+         (bg    (or (face-attribute 'default :background nil t)
+                    (frame-parameter nil 'background-color)
+                    (if (eq mode 'dark) "#000000" "#ffffff"))))
     (cons fg bg)))
 
 (defun pomo-cat--get-cat-text ()
@@ -468,7 +488,9 @@ Displays image if available, otherwise falls back to ASCII art."
             (pomo-cat--get-break-duration))))
     (pomo-cat--state-set :break-type break-type)
     (pomo-cat--state-set :in-break t)
-    (message "Break started! (%s break)" (symbol-name break-type))
+    (message "Pomodoro Break started! (a %s break for %s)"
+             break-type
+             (pomo-cat--format-duration duration))
     (pomo-cat--show-cat)
     (when pomo-cat-get-focus
       (other-frame 0))
@@ -481,7 +503,9 @@ Displays image if available, otherwise falls back to ASCII art."
         (duration (pomo-cat--get-work-duration)))
     (pomo-cat--state-set :cycle-count new-count)
     (pomo-cat--state-set :in-break nil)
-    (message "Pomodoro work #%d started!" new-count)
+    (message "Pomodoro Work #%d has started! (%s)"
+             new-count
+             (pomo-cat--format-duration duration))
     (pomo-cat--schedule-timer duration #'pomo-cat--start-break)))
 
 ;;;###autoload
@@ -513,7 +537,8 @@ If SECONDS is negative, it is treated as 0."
       (pomo-cat--clear-cat-display)
       (pomo-cat--state-set :in-break nil) ; Mark as not in break during delay
       (pomo-cat--schedule-timer delay #'pomo-cat--start-break)
-      (message "Break delayed %ds." delay))))
+      (message "Pomodoro Break delayed %s."
+               (pomo-cat--format-duration delay)))))
 
 ;;;###autoload
 (defun pomo-cat-stop-break ()
@@ -534,11 +559,12 @@ If SECONDS is negative, it is treated as 0."
         (break-type (pomo-cat--state-get :break-type)))
     (if (not timer)
         (message "pomo-cat: Not running")
-      (message "pomo-cat: Cycle #%d, %s"
+      (message "Pomodoro Cycle #%d, %s %s"
                cycle
                (if in-break
-                   (format "in %s break" (symbol-name break-type))
-                 "working")))))
+                   (format "in a %s break" break-type)
+                 "working")
+               (pomo-cat--format-end-time (timer--time timer))))))
 
 ;;; Initialization
 
