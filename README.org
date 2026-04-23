@@ -227,7 +227,7 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
 - `pomo-cat-get-focus` ::
   Controls whether the break window receives focus when it appears.
   - `nil` (default) :: Window appears but doesn't steal focus (minimal interruption)
-  - `t` :: Window gets focus and brings Emacs to the front
+  - `t` :: Dedicated-frame mode focuses the break frame; other modes raise and focus the current Emacs frame
 
   #+begin_src emacs-lisp
     ;; Passive notification (default)

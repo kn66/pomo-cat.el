@@ -120,8 +120,9 @@ This setting is used when `pomo-cat-use-dedicated-frame' is nil."
   :type 'string)
 
 (defcustom pomo-cat-get-focus nil
-  "Bring Emacs' zeroth frame to the front and in focus.
-I.e. to notify the user of a break even if not working in Emacs."
+  "Bring the break notification to the front and give it focus.
+With dedicated-frame mode, focus the dedicated break frame.
+Otherwise, raise and focus the currently selected Emacs frame."
   :type 'boolean)
 
 ;;; Internal State Management
@@ -639,17 +640,15 @@ Displays image if available, otherwise falls back to ASCII art."
       (pomo-cat--update-dedicated-frame-content frame use-image img remaining-text))))
 
 (defun pomo-cat--manage-frame-focus (frame)
-  "Manage focus behavior for FRAME according to `pomo-cat-get-focus'."
+  "Raise FRAME and give it input focus."
   (when (and frame (frame-live-p frame))
-    (with-selected-frame frame
-      ;; Platform-specific focus control
-      (when (fboundp 'x-focus-frame)
-        (x-focus-frame frame))
-      (when (fboundp 'raise-frame)
-        (raise-frame frame)))
-    ;; Return focus based on settings
-    (unless pomo-cat-get-focus
-      (other-frame 0))))
+    (when (fboundp 'raise-frame)
+      (raise-frame frame))
+    (condition-case nil
+        (select-frame-set-input-focus frame)
+      (error
+       (when (fboundp 'x-focus-frame)
+         (x-focus-frame frame))))))
 
 (defun pomo-cat--show-cat (&optional skip-focus-management)
   "Show a cat based on configuration and environment.
@@ -657,22 +656,26 @@ Displays image if available, otherwise falls back to ASCII art."
 - If image is configured and GUI: posframe with image
 - Otherwise: popon with ASCII art"
   (condition-case err
-      (cond
-       ;; Dedicated frame (GUI only)
-       ((and pomo-cat-use-dedicated-frame (display-graphic-p))
-        (pomo-cat--show-dedicated-frame)
-        (when (and pomo-cat-get-focus (not skip-focus-management))
-          (pomo-cat--manage-frame-focus
-           (pomo-cat--state-get :dedicated-frame))))
+      (let ((focus-frame nil))
+        (cond
+         ;; Dedicated frame (GUI only)
+         ((and pomo-cat-use-dedicated-frame (display-graphic-p))
+          (pomo-cat--show-dedicated-frame)
+          (setq focus-frame (pomo-cat--state-get :dedicated-frame)))
 
-       ;; Posframe with image (GUI only, when image is configured)
-       ((pomo-cat--image-available-p)
-        (or (pomo-cat--show-image)
-            (pomo-cat--show-ascii-cat)))
+         ;; Posframe with image (GUI only, when image is configured)
+         ((pomo-cat--image-available-p)
+          (or (pomo-cat--show-image)
+              (pomo-cat--show-ascii-cat))
+          (setq focus-frame (selected-frame)))
 
-       ;; Default: ASCII cat (popon or fallback)
-       (t
-        (pomo-cat--show-ascii-cat)))
+         ;; Default: ASCII cat (popon or fallback)
+         (t
+          (pomo-cat--show-ascii-cat)
+          (setq focus-frame (selected-frame))))
+        (when (and pomo-cat-get-focus
+                   (not skip-focus-management))
+          (pomo-cat--manage-frame-focus focus-frame)))
     (error
      (message "pomo-cat: Error showing cat: %s"
               (error-message-string err)))))
@@ -722,8 +725,6 @@ Displays image if available, otherwise falls back to ASCII art."
     (message "Break started! (%s break)" (symbol-name break-type))
     (pomo-cat--show-cat)
     (pomo-cat--start-display-ticker)
-    (when pomo-cat-get-focus
-      (other-frame 0))
     (pomo-cat--schedule-timer duration #'pomo-cat--start-work)))
 
 (defun pomo-cat--start-work ()
