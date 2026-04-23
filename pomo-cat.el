@@ -139,11 +139,13 @@ Keys:
   :timer - Timer object for Pomodoro intervals
   :display-ticker - Repeating timer object for break display updates
   :cycle-count - Number of completed work sessions
+  :phase - Current timer phase (\\='idle, \\='work, \\='break, or \\='break-delayed)
   :break-type - Current break type (\\='short or \\='long)
   :in-break - Whether currently in a break
   :phase-end-time - End time of current phase as a time value
   :popon-instance - Popon display instance
-  :dedicated-frame - Dedicated frame instance")
+  :dedicated-frame - Dedicated frame instance
+  :dedicated-buffer - Internal buffer for dedicated frame content")
 
 (defun pomo-cat--state-get (key)
   "Get value for KEY from internal state."
@@ -166,11 +168,21 @@ Keys:
           nil
           :display-ticker nil
           :cycle-count 0
+          :phase idle
           :break-type short
           :in-break nil
           :phase-end-time nil
           :popon-instance nil
-          :dedicated-frame nil)))
+          :dedicated-frame nil
+          :dedicated-buffer nil)))
+
+(defun pomo-cat--phase ()
+  "Return the current timer phase."
+  (or (pomo-cat--state-get :phase) 'idle))
+
+(defun pomo-cat--phase-active-p (phase)
+  "Return non-nil when current timer phase is PHASE."
+  (eq (pomo-cat--phase) phase))
 
 ;;; Validation Functions
 ;;
@@ -264,7 +276,12 @@ This ensures only one timer is active at a time."
         (let ((frame (pomo-cat--state-get :dedicated-frame)))
           (when (and frame (frame-live-p frame))
             (delete-frame frame)
-            (pomo-cat--state-set :dedicated-frame nil))))
+            (pomo-cat--state-set :dedicated-frame nil)))
+        ;; Clean up internal dedicated-frame buffer
+        (let ((buffer (pomo-cat--state-get :dedicated-buffer)))
+          (when (buffer-live-p buffer)
+            (kill-buffer buffer)
+            (pomo-cat--state-set :dedicated-buffer nil))))
     (error
      (message "pomo-cat: Error clearing display: %s"
               (error-message-string err)))))
@@ -307,7 +324,7 @@ This ensures only one timer is active at a time."
 
 (defun pomo-cat--break-remaining-text ()
   "Return break remaining-time string, or nil outside breaks."
-  (when (pomo-cat--state-get :in-break)
+  (when (pomo-cat--phase-active-p 'break)
     (let ((remaining (pomo-cat--remaining-break-seconds)))
       (when (integerp remaining)
         (format "Remaining: %s" (pomo-cat--format-mmss remaining))))))
@@ -479,22 +496,29 @@ Returns plist with :left, :top, :width, :height."
   "Update FRAME buffer contents with cat display.
 USE-IMAGE selects between IMG and ASCII.
 REMAINING-TEXT is appended when non-nil."
-  (with-selected-frame frame
-    (switch-to-buffer "*pomo-cat-break*")
-    (read-only-mode -1)
-    (erase-buffer)
-    (if use-image
-        (progn
-          (insert-image img)
-          (when remaining-text
-            (insert "\n" remaining-text)))
-      (insert (pomo-cat--ascii-cat-display-text)))
-    (goto-char (point-min))
-    (set-window-point (selected-window) (point-min))
-    (set-window-start (selected-window) (point-min))
-    (setq-local cursor-type nil)
-    (setq-local mode-line-format nil)
-    (read-only-mode 1)))
+  (let* ((buffer
+          (or (and (buffer-live-p (pomo-cat--state-get :dedicated-buffer))
+                   (pomo-cat--state-get :dedicated-buffer))
+              (let ((new-buffer (generate-new-buffer " *pomo-cat-break*")))
+                (pomo-cat--state-set :dedicated-buffer new-buffer)
+                new-buffer)))
+         (window (frame-root-window frame)))
+    (set-window-buffer window buffer)
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (if use-image
+            (progn
+              (insert-image img)
+              (when remaining-text
+                (insert "\n" remaining-text)))
+          (insert (pomo-cat--ascii-cat-display-text))))
+      (goto-char (point-min))
+      (setq-local cursor-type nil)
+      (setq-local mode-line-format nil)
+      (read-only-mode 1)
+      (set-window-point window (point-min))
+      (set-window-start window (point-min)))))
 
 (defun pomo-cat--apply-frame-geometry (frame geometry)
   "Apply GEOMETRY plist to FRAME."
@@ -690,14 +714,14 @@ Displays image if available, otherwise falls back to ASCII art."
 
 (defun pomo-cat--refresh-break-display ()
   "Refresh the visible break display countdown."
-  (if (not (pomo-cat--state-get :in-break))
+  (if (not (pomo-cat--phase-active-p 'break))
       (pomo-cat--cancel-display-ticker)
     (pomo-cat--show-cat t)))
 
 (defun pomo-cat--start-display-ticker ()
   "Start the 1-second break display refresh ticker."
   (pomo-cat--cancel-display-ticker)
-  (when (and (pomo-cat--state-get :in-break)
+  (when (and (pomo-cat--phase-active-p 'break)
              (pomo-cat--display-ticker-supported-p))
     (pomo-cat--state-set
      :display-ticker
@@ -714,9 +738,10 @@ Displays image if available, otherwise falls back to ASCII art."
               'long
             'short))
          (duration
-          (if (eq break-type 'long)
+         (if (eq break-type 'long)
               (pomo-cat--get-long-break-duration)
             (pomo-cat--get-break-duration))))
+    (pomo-cat--state-set :phase 'break)
     (pomo-cat--state-set :break-type break-type)
     (pomo-cat--state-set :in-break t)
     (pomo-cat--state-set :phase-end-time
@@ -732,6 +757,7 @@ Displays image if available, otherwise falls back to ASCII art."
   (pomo-cat--clear-cat-display)
   (let ((new-count (1+ (or (pomo-cat--state-get :cycle-count) 0)))
         (duration (pomo-cat--get-work-duration)))
+    (pomo-cat--state-set :phase 'work)
     (pomo-cat--state-set :cycle-count new-count)
     (pomo-cat--state-set :in-break nil)
     (pomo-cat--state-set :phase-end-time nil)
@@ -779,8 +805,11 @@ If SECONDS is negative, it is treated as 0."
                        pomo-cat-delay-break-seconds)
               (max 0 pomo-cat-delay-break-seconds)))))
       (pomo-cat--clear-cat-display)
+      (pomo-cat--state-set :phase 'break-delayed)
       (pomo-cat--state-set :in-break nil) ; Mark as not in break during delay
-      (pomo-cat--state-set :phase-end-time nil)
+      (pomo-cat--state-set :phase-end-time
+                           (time-add (current-time)
+                                     (seconds-to-time delay)))
       (pomo-cat--schedule-timer delay #'pomo-cat--start-break)
       (message "Break delayed %ds." delay))))
 
@@ -799,15 +828,23 @@ If SECONDS is negative, it is treated as 0."
   (interactive)
   (let ((timer (pomo-cat--state-get :timer))
         (cycle (or (pomo-cat--state-get :cycle-count) 0))
-        (in-break (pomo-cat--state-get :in-break))
-        (break-type (pomo-cat--state-get :break-type)))
+        (break-type (pomo-cat--state-get :break-type))
+        (phase (pomo-cat--phase)))
     (if (not timer)
         (message "pomo-cat: Not running")
       (message "pomo-cat: Cycle #%d, %s"
                cycle
-               (if in-break
-                   (format "in %s break" (symbol-name break-type))
-                 "working")))))
+               (pcase phase
+                 ('break
+                  (format "in %s break" (symbol-name break-type)))
+                 ('break-delayed
+                  (let ((remaining (pomo-cat--remaining-break-seconds)))
+                    (if (integerp remaining)
+                        (format "break delayed (%s until resume)"
+                                (pomo-cat--format-mmss remaining))
+                      "break delayed")))
+                 ('work "working")
+                 (_ "idle"))))))
 
 ;;; Initialization
 
