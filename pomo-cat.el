@@ -139,7 +139,7 @@ Keys:
   :timer - Timer object for Pomodoro intervals
   :display-ticker - Repeating timer object for break display updates
   :cycle-count - Number of completed work sessions
-  :phase - Current timer phase (\\='idle, \\='work, \\='break, or \\='break-delayed)
+  :phase - Current timer phase
   :break-type - Current break type (\\='short or \\='long)
   :in-break - Whether currently in a break
   :phase-end-time - End time of current phase as a time value
@@ -195,7 +195,7 @@ Returns VALUE if valid, otherwise returns a sensible default and warns."
    ((and (integerp value) (> value 0))
     value)
    ((and (numberp value) (> value 0))
-    (let ((rounded (round value)))
+    (let ((rounded (max 1 (round value))))
       (message "pomo-cat: %s should be integer, using %d"
                name
                rounded)
@@ -234,6 +234,19 @@ Returns VALUE if valid, otherwise returns a sensible default and warns."
       (message "pomo-cat: Invalid cycles-before-long-break (%s), using default 4"
                value)
       4))))
+
+(defun pomo-cat--get-delay-break-seconds (&optional seconds)
+  "Get validated delay duration in seconds.
+When SECONDS is nil, use `pomo-cat-delay-break-seconds'."
+  (let ((value (or seconds pomo-cat-delay-break-seconds)))
+    (cond
+     ((integerp value)
+      (max 0 value))
+     ((numberp value)
+      (max 0 (round value)))
+     (t
+      (message "pomo-cat: Invalid delay (%s), using default 60" value)
+      60))))
 
 ;;; Timer Management
 ;;
@@ -467,6 +480,7 @@ Uses theme colors and `pomo-cat-overlay-position'."
 
 (defun pomo-cat--calculate-frame-geometry-for-image (img &optional remaining-text)
   "Calculate frame geometry for IMG display.
+REMAINING-TEXT is included in the height when non-nil.
 Returns plist with :left, :top, :width, :height."
   (let* ((img-width (car (image-size img t)))
          (img-height (cdr (image-size img t)))
@@ -541,8 +555,10 @@ REMAINING-TEXT is appended when non-nil."
          (when (eq pomo-cat-use-dedicated-frame 'topmost) 'above))
       (error nil))))
 
-(defun pomo-cat--dedicated-frame-screen-position (frame-width-pixels frame-height-pixels)
-  "Calculate dedicated frame screen position for given pixel dimensions.
+(defun pomo-cat--dedicated-frame-screen-position
+    (frame-width-pixels frame-height-pixels)
+  "Calculate dedicated frame position.
+FRAME-WIDTH-PIXELS and FRAME-HEIGHT-PIXELS are pixel dimensions.
 Returns a plist with `:left' and `:top'."
   (let* ((workarea (frame-monitor-workarea))
          (work-left (nth 0 workarea))
@@ -644,7 +660,8 @@ Displays image if available, otherwise falls back to ASCII art."
          (img nil))
     (when use-image
       (condition-case err
-          (setq img (create-image pomo-cat-cat-image-path))
+          (setq img (create-image pomo-cat-cat-image-path)
+                use-image (and img t))
         (error
          (setq use-image nil)
          (message "pomo-cat: Error preparing dedicated-frame image: %s"
@@ -676,6 +693,7 @@ Displays image if available, otherwise falls back to ASCII art."
 
 (defun pomo-cat--show-cat (&optional skip-focus-management)
   "Show a cat based on configuration and environment.
+When SKIP-FOCUS-MANAGEMENT is non-nil, do not alter frame focus.
 - If `pomo-cat-use-dedicated-frame' is non-nil and GUI: dedicated-frame
 - If image is configured and GUI: posframe with image
 - Otherwise: popon with ASCII art"
@@ -792,18 +810,7 @@ If SECONDS is negative, it is treated as 0."
       (prefix-numeric-value current-prefix-arg))))
   (if (not (pomo-cat--state-get :in-break))
       (message "pomo-cat: Not currently in a break.")
-    (let* ((raw-delay (or seconds pomo-cat-delay-break-seconds))
-           (delay
-            (cond
-             ((integerp raw-delay)
-              (max 0 raw-delay))
-             ((numberp raw-delay)
-              (max 0 (round raw-delay)))
-             (t
-              (message "pomo-cat: Invalid delay (%s), using default %d"
-                       raw-delay
-                       pomo-cat-delay-break-seconds)
-              (max 0 pomo-cat-delay-break-seconds)))))
+    (let ((delay (pomo-cat--get-delay-break-seconds seconds)))
       (pomo-cat--clear-cat-display)
       (pomo-cat--state-set :phase 'break-delayed)
       (pomo-cat--state-set :in-break nil) ; Mark as not in break during delay
