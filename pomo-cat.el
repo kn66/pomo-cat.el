@@ -808,11 +808,6 @@ If SECONDS is negative, it is treated as 0."
                    (format "in %s break" (symbol-name break-type))
                  "working")))))
 
-;;; Initialization
-
-;; Initialize state on load
-(pomo-cat--reset-state)
-
 (provide 'pomo-cat)
 
 ;;; pomo-cat.el ends here
