@@ -253,7 +253,7 @@ This ensures only one timer is active at a time."
         (pomo-cat--cancel-display-ticker)
         ;; Clean up posframe
         (when (and (featurep 'posframe) (posframe-workable-p))
-          (posframe-delete "*pomo-cat*"))
+          (posframe-delete " *pomo-cat*"))
         ;; Clean up popon
         (let ((popon (pomo-cat--state-get :popon-instance)))
           (when (and (featurep 'popon) popon)
@@ -336,7 +336,7 @@ Uses theme colors and `pomo-cat-overlay-position'."
            (fg (car colors))
            (bg (cdr colors)))
       (posframe-show
-       "*pomo-cat*"
+       " *pomo-cat*"
        :string content
        :position (point)
        :poshandler (pomo-cat--posframe-poshandler)
@@ -425,12 +425,12 @@ Uses theme colors and `pomo-cat-overlay-position'."
                ;; because image row height rounding can clip the last line.
                (lines (+ img-lines (if remaining-text 2 0))))
           (posframe-show
-           "*pomo-cat*"
+           " *pomo-cat*"
            :string ""
            :poshandler (pomo-cat--posframe-poshandler)
            :width cols
            :height lines)
-          (with-current-buffer "*pomo-cat*"
+          (with-current-buffer " *pomo-cat*"
             (erase-buffer)
             (insert-image img)
             (when remaining-text
@@ -479,7 +479,7 @@ Returns plist with :left, :top, :width, :height."
 USE-IMAGE selects between IMG and ASCII.
 REMAINING-TEXT is appended when non-nil."
   (with-selected-frame frame
-    (switch-to-buffer "*pomo-cat-break*")
+    (switch-to-buffer " *pomo-cat-break*")
     (read-only-mode -1)
     (erase-buffer)
     (if use-image
