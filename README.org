@@ -1,3 +1,5 @@
+# -*- coding: utf-8-unix -*-
+
 * Overview
 
 =pomo-cat.el= is a simple yet charming Pomodoro timer for Emacs.
@@ -94,6 +96,7 @@ The package is available on MELPA. Dependencies include ~posframe~ and ~popon~.
 - `M-x pomo-cat-stop` :: Stop the timer and hide the cat
 - `M-x pomo-cat-delay-break` :: Delay current break (during break periods)
 - `M-x pomo-cat-stop-break` :: End current break immediately
+- `M-x pomo-cat-status` :: Show the current phase and remaining time
 
 ** Display Methods Explained
 
@@ -152,6 +155,10 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
   Duration of a long break (after multiple cycles), in seconds.
   Default is 1200 seconds (20 minutes).
   Useful for deeper rest after completing several Pomodoros.
+
+- `pomo-cat-delay-break-seconds` ::
+  Default number of seconds used by ~pomo-cat-delay-break~ when no prefix
+  argument is supplied.  Default is 60 seconds.
 
 - `pomo-cat-cycles-before-long-break` ::
   Number of completed Pomodoro cycles before a long break is triggered.
@@ -227,7 +234,7 @@ Use =M-x customize-group RET pomo-cat RET= or set variables directly in your ini
 - `pomo-cat-get-focus` ::
   Controls whether the break window receives focus when it appears.
   - `nil` (default) :: Window appears but doesn't steal focus (minimal interruption)
-  - `t` :: Dedicated-frame mode focuses the break frame; other modes raise and focus the current Emacs frame
+  - `t` :: Window gets focus and brings Emacs to the front
 
   #+begin_src emacs-lisp
     ;; Passive notification (default)
@@ -336,6 +343,18 @@ If windows behave unexpectedly:
   ;; Or enable active notifications if you prefer
   (setq pomo-cat-get-focus t)
 #+end_src
+
+* Development
+
+Run the complete local verification suite with:
+
+#+begin_src shell
+  make check
+#+end_src
+
+This runs the ERT tests, strict byte compilation, and Checkdoc.  GitHub Actions
+also runs the suite on Emacs 27.1 and 30.2 and checks the package with
+~package-lint~.
 
 * License
 

@@ -120,9 +120,8 @@ This setting is used when `pomo-cat-use-dedicated-frame' is nil."
   :type 'string)
 
 (defcustom pomo-cat-get-focus nil
-  "Bring the break notification to the front and give it focus.
-With dedicated-frame mode, focus the dedicated break frame.
-Otherwise, raise and focus the currently selected Emacs frame."
+  "Bring Emacs' zeroth frame to the front and in focus.
+I.e. to notify the user of a break even if not working in Emacs."
   :type 'boolean)
 
 ;;; Internal State Management
@@ -139,13 +138,15 @@ Keys:
   :timer - Timer object for Pomodoro intervals
   :display-ticker - Repeating timer object for break display updates
   :cycle-count - Number of completed work sessions
-  :phase - Current timer phase
   :break-type - Current break type (\\='short or \\='long)
   :in-break - Whether currently in a break
   :phase-end-time - End time of current phase as a time value
+  :phase - Current phase (`stopped', `work', `break', or `break-delay')
   :popon-instance - Popon display instance
   :dedicated-frame - Dedicated frame instance
-  :dedicated-buffer - Internal buffer for dedicated frame content")
+  :image-cache-path - Path used for the cached image
+  :image-cache-mtime - Modification time of the cached image
+  :image-cache - Cached Emacs image object")
 
 (defun pomo-cat--state-get (key)
   "Get value for KEY from internal state."
@@ -158,66 +159,80 @@ Keys:
 (defun pomo-cat--reset-state ()
   "Reset all internal state to initial values."
   (let ((timer (pomo-cat--state-get :timer)))
-    (when timer
+    (when (timerp timer)
       (cancel-timer timer)))
   (let ((ticker (pomo-cat--state-get :display-ticker)))
-    (when ticker
+    (when (timerp ticker)
       (cancel-timer ticker)))
   (setq pomo-cat--state
-        '(:timer
-          nil
-          :display-ticker nil
-          :cycle-count 0
-          :phase idle
-          :break-type short
-          :in-break nil
-          :phase-end-time nil
-          :popon-instance nil
-          :dedicated-frame nil
-          :dedicated-buffer nil)))
-
-(defun pomo-cat--phase ()
-  "Return the current timer phase."
-  (or (pomo-cat--state-get :phase) 'idle))
-
-(defun pomo-cat--phase-active-p (phase)
-  "Return non-nil when current timer phase is PHASE."
-  (eq (pomo-cat--phase) phase))
+        (list :timer nil
+              :display-ticker nil
+              :cycle-count 0
+              :break-type 'short
+              :in-break nil
+              :phase 'stopped
+              :phase-end-time nil
+              :popon-instance nil
+              :dedicated-frame nil
+              :image-cache-path nil
+              :image-cache-mtime nil
+              :image-cache nil)))
 
 ;;; Validation Functions
 ;;
 ;; Input validation to ensure configuration values are sensible.
 
-(defun pomo-cat--validate-positive-integer (value name)
+(defun pomo-cat--validate-positive-integer (value name default)
   "Validate that VALUE is a positive integer for config NAME.
-Returns VALUE if valid, otherwise returns a sensible default and warns."
+Returns VALUE if valid, otherwise returns DEFAULT and warns."
   (cond
    ((and (integerp value) (> value 0))
     value)
    ((and (numberp value) (> value 0))
-    (let ((rounded (max 1 (round value))))
-      (message "pomo-cat: %s should be integer, using %d"
-               name
-               rounded)
+    (let ((rounded (round value)))
+      (if (> rounded 0)
+          (progn
+            (message "pomo-cat: %s should be integer, using %d"
+                     name
+                     rounded)
+            rounded)
+        (message "pomo-cat: Invalid %s (%s), using default %d"
+                 name value default)
+        default)))
+   (t
+    (message "pomo-cat: Invalid %s (%s), using default %d"
+             name value default)
+    default)))
+
+(defun pomo-cat--validate-nonnegative-integer (value name default)
+  "Validate VALUE as a non-negative integer for config NAME.
+Returns the validated value, or DEFAULT after reporting invalid input."
+  (cond
+   ((and (integerp value) (>= value 0))
+    value)
+   ((and (numberp value) (>= value 0))
+    (let ((rounded (max 0 (round value))))
+      (message "pomo-cat: %s should be integer, using %d" name rounded)
       rounded))
    (t
-    (message "pomo-cat: Invalid %s (%s), using default 60" name value)
-    60)))
+    (message "pomo-cat: Invalid %s (%s), using default %d"
+             name value default)
+    default)))
 
 (defun pomo-cat--get-work-duration ()
   "Get validated work duration in seconds."
   (pomo-cat--validate-positive-integer
-   pomo-cat-work-duration-seconds "work-duration"))
+   pomo-cat-work-duration-seconds "work-duration" (* 60 25)))
 
 (defun pomo-cat--get-break-duration ()
   "Get validated short break duration in seconds."
   (pomo-cat--validate-positive-integer
-   pomo-cat-break-duration-seconds "break-duration"))
+   pomo-cat-break-duration-seconds "break-duration" (* 60 5)))
 
 (defun pomo-cat--get-long-break-duration ()
   "Get validated long break duration in seconds."
   (pomo-cat--validate-positive-integer
-   pomo-cat-long-break-duration-seconds "long-break-duration"))
+   pomo-cat-long-break-duration-seconds "long-break-duration" (* 60 20)))
 
 (defun pomo-cat--get-cycles-before-long-break ()
   "Get validated cycle count before long break."
@@ -227,26 +242,18 @@ Returns VALUE if valid, otherwise returns a sensible default and warns."
       value)
      ((and (numberp value) (> value 0))
       (let ((rounded (round value)))
-        (message "pomo-cat: cycles-before-long-break should be integer, using %d"
-                 rounded)
-        rounded))
+        (if (> rounded 0)
+            (progn
+              (message "pomo-cat: cycles-before-long-break should be integer, using %d"
+                       rounded)
+              rounded)
+          (message "pomo-cat: Invalid cycles-before-long-break (%s), using default 4"
+                   value)
+          4)))
      (t
       (message "pomo-cat: Invalid cycles-before-long-break (%s), using default 4"
                value)
       4))))
-
-(defun pomo-cat--get-delay-break-seconds (&optional seconds)
-  "Get validated delay duration in seconds.
-When SECONDS is nil, use `pomo-cat-delay-break-seconds'."
-  (let ((value (or seconds pomo-cat-delay-break-seconds)))
-    (cond
-     ((integerp value)
-      (max 0 value))
-     ((numberp value)
-      (max 0 (round value)))
-     (t
-      (message "pomo-cat: Invalid delay (%s), using default 60" value)
-      60))))
 
 ;;; Timer Management
 ;;
@@ -274,30 +281,33 @@ This ensures only one timer is active at a time."
 
 (defun pomo-cat--clear-cat-display ()
   "Clear the current cat display, whether posframe, popon, or dedicated frame."
-  (condition-case err
-      (progn
-        (pomo-cat--cancel-display-ticker)
-        ;; Clean up posframe
-        (when (and (featurep 'posframe) (posframe-workable-p))
-          (posframe-delete "*pomo-cat*"))
-        ;; Clean up popon
-        (let ((popon (pomo-cat--state-get :popon-instance)))
-          (when (and (featurep 'popon) popon)
-            (popon-kill popon)
-            (pomo-cat--state-set :popon-instance nil)))
-        ;; Clean up dedicated frame
-        (let ((frame (pomo-cat--state-get :dedicated-frame)))
-          (when (and frame (frame-live-p frame))
-            (delete-frame frame)
-            (pomo-cat--state-set :dedicated-frame nil)))
-        ;; Clean up internal dedicated-frame buffer
-        (let ((buffer (pomo-cat--state-get :dedicated-buffer)))
-          (when (buffer-live-p buffer)
-            (kill-buffer buffer)
-            (pomo-cat--state-set :dedicated-buffer nil))))
-    (error
-     (message "pomo-cat: Error clearing display: %s"
-              (error-message-string err)))))
+  (pomo-cat--cancel-display-ticker)
+  ;; Each backend is cleaned independently so one failure cannot prevent the
+  ;; remaining resources from being released.
+  (when (featurep 'posframe)
+    (condition-case err
+        (posframe-delete " *pomo-cat*")
+      (error
+       (message "pomo-cat: Error clearing posframe: %s"
+                (error-message-string err)))))
+  (let ((popon (pomo-cat--state-get :popon-instance)))
+    (unwind-protect
+        (when (and (featurep 'popon) popon)
+          (condition-case err
+              (popon-kill popon)
+            (error
+             (message "pomo-cat: Error clearing popon: %s"
+                      (error-message-string err)))))
+      (pomo-cat--state-set :popon-instance nil)))
+  (let ((frame (pomo-cat--state-get :dedicated-frame)))
+    (unwind-protect
+        (when (and frame (frame-live-p frame))
+          (condition-case err
+              (delete-frame frame)
+            (error
+             (message "pomo-cat: Error clearing dedicated frame: %s"
+                      (error-message-string err)))))
+      (pomo-cat--state-set :dedicated-frame nil))))
 
 ;;; Display Utilities
 ;;
@@ -322,8 +332,8 @@ This ensures only one timer is active at a time."
      "\n+\\'" ""
      (replace-regexp-in-string "\\`\n+" "" text))))
 
-(defun pomo-cat--remaining-break-seconds ()
-  "Return remaining break time in seconds, or nil if unavailable."
+(defun pomo-cat--remaining-phase-seconds ()
+  "Return remaining phase time in seconds, or nil if unavailable."
   (let ((end-time (pomo-cat--state-get :phase-end-time)))
     (when end-time
       (max 0
@@ -331,13 +341,18 @@ This ensures only one timer is active at a time."
             (float-time
              (time-subtract end-time (current-time))))))))
 
+(defun pomo-cat--remaining-break-seconds ()
+  "Return remaining break time in seconds, or nil outside breaks."
+  (when (pomo-cat--state-get :in-break)
+    (pomo-cat--remaining-phase-seconds)))
+
 (defun pomo-cat--format-mmss (seconds)
   "Format SECONDS as MM:SS."
   (format "%02d:%02d" (/ seconds 60) (% seconds 60)))
 
 (defun pomo-cat--break-remaining-text ()
   "Return break remaining-time string, or nil outside breaks."
-  (when (pomo-cat--phase-active-p 'break)
+  (when (pomo-cat--state-get :in-break)
     (let ((remaining (pomo-cat--remaining-break-seconds)))
       (when (integerp remaining)
         (format "Remaining: %s" (pomo-cat--format-mmss remaining))))))
@@ -357,6 +372,17 @@ This ensures only one timer is active at a time."
          (width (apply #'max 0 (mapcar #'string-width lines))))
     (cons width height)))
 
+(defun pomo-cat--try-display (backend function)
+  "Call FUNCTION for display BACKEND and return non-nil on success.
+Display errors are reported and converted to nil so callers can fall back."
+  (condition-case err
+      (funcall function)
+    (error
+     (message "pomo-cat: %s display failed: %s"
+              backend
+              (error-message-string err))
+     nil)))
+
 (defun pomo-cat--show-posframe (content &optional width height)
   "Display CONTENT in a posframe with optional WIDTH and HEIGHT.
 Uses theme colors and `pomo-cat-overlay-position'."
@@ -367,7 +393,7 @@ Uses theme colors and `pomo-cat-overlay-position'."
            (fg (car colors))
            (bg (cdr colors)))
       (posframe-show
-       "*pomo-cat*"
+       " *pomo-cat*"
        :string content
        :position (point)
        :poshandler (pomo-cat--posframe-poshandler)
@@ -414,23 +440,31 @@ Uses theme colors and `pomo-cat-overlay-position'."
          (size (pomo-cat--measure-ascii cat-text))
          (cols (car size))
          (lines (cdr size)))
-    (cond
-     ;; GUI: use posframe
-     ((and (featurep 'posframe)
-           (display-graphic-p)
-           (posframe-workable-p))
-      (pomo-cat--show-posframe cat-text cols lines))
-     ;; Terminal: use popon
-     ((featurep 'popon)
-      (let ((old-popo (pomo-cat--state-get :popon-instance)))
-        (when old-popo
-          (ignore-errors (popon-kill old-popo))
-          (pomo-cat--state-set :popon-instance nil)))
-      (pomo-cat--state-set
-       :popon-instance (popon-create cat-text (pomo-cat--popon-position cols lines))))
-     ;; Fallback: message area
-     (t
-      (message "\n%s" cat-text)))))
+    (or
+     ;; GUI: use posframe.
+     (and (featurep 'posframe)
+          (display-graphic-p)
+          (posframe-workable-p)
+          (pomo-cat--try-display
+           "posframe ASCII"
+           (lambda () (pomo-cat--show-posframe cat-text cols lines))))
+     ;; Popon is the preferred terminal fallback.
+     (and (featurep 'popon)
+          (pomo-cat--try-display
+           "popon"
+           (lambda ()
+             (let ((old-popon (pomo-cat--state-get :popon-instance)))
+               (when old-popon
+                 (ignore-errors (popon-kill old-popon))))
+             (let ((popon
+                    (popon-create
+                     cat-text (pomo-cat--popon-position cols lines))))
+               (pomo-cat--state-set :popon-instance popon)
+               popon))))
+     ;; Last-resort fallback: message area.
+     (progn
+       (message "\n%s" cat-text)
+       t))))
 
 (defun pomo-cat--show-image ()
   "Display the configured cat image using posframe, if available."
@@ -441,7 +475,7 @@ Uses theme colors and `pomo-cat-overlay-position'."
              (file-exists-p pomo-cat-cat-image-path))
     (condition-case err
         (let* ((remaining-text (pomo-cat--break-remaining-text))
-               (img (create-image pomo-cat-cat-image-path))
+               (img (pomo-cat--get-image))
                (width (car (image-size img t)))
                (height (cdr (image-size img t)))
                (char-width (frame-char-width))
@@ -456,12 +490,12 @@ Uses theme colors and `pomo-cat-overlay-position'."
                ;; because image row height rounding can clip the last line.
                (lines (+ img-lines (if remaining-text 2 0))))
           (posframe-show
-           "*pomo-cat*"
+           " *pomo-cat*"
            :string ""
            :poshandler (pomo-cat--posframe-poshandler)
            :width cols
            :height lines)
-          (with-current-buffer "*pomo-cat*"
+          (with-current-buffer " *pomo-cat*"
             (erase-buffer)
             (insert-image img)
             (when remaining-text
@@ -476,11 +510,29 @@ Uses theme colors and `pomo-cat-overlay-position'."
   "Return non-nil if cat image is available for display."
   (and (display-graphic-p)
        (stringp pomo-cat-cat-image-path)
-       (file-exists-p pomo-cat-cat-image-path)))
+       (file-readable-p pomo-cat-cat-image-path)))
+
+(defun pomo-cat--get-image ()
+  "Return the configured image, reusing it while its file is unchanged."
+  (when (pomo-cat--image-available-p)
+    (let* ((path (expand-file-name pomo-cat-cat-image-path))
+           (mtime
+            (file-attribute-modification-time (file-attributes path)))
+           (cached-path (pomo-cat--state-get :image-cache-path))
+           (cached-mtime (pomo-cat--state-get :image-cache-mtime))
+           (cached-image (pomo-cat--state-get :image-cache)))
+      (if (and cached-image
+               (equal path cached-path)
+               (equal mtime cached-mtime))
+          cached-image
+        (let ((image (create-image path)))
+          (pomo-cat--state-set :image-cache-path path)
+          (pomo-cat--state-set :image-cache-mtime mtime)
+          (pomo-cat--state-set :image-cache image)
+          image)))))
 
 (defun pomo-cat--calculate-frame-geometry-for-image (img &optional remaining-text)
   "Calculate frame geometry for IMG display.
-REMAINING-TEXT is included in the height when non-nil.
 Returns plist with :left, :top, :width, :height."
   (let* ((img-width (car (image-size img t)))
          (img-height (cdr (image-size img t)))
@@ -510,29 +562,22 @@ Returns plist with :left, :top, :width, :height."
   "Update FRAME buffer contents with cat display.
 USE-IMAGE selects between IMG and ASCII.
 REMAINING-TEXT is appended when non-nil."
-  (let* ((buffer
-          (or (and (buffer-live-p (pomo-cat--state-get :dedicated-buffer))
-                   (pomo-cat--state-get :dedicated-buffer))
-              (let ((new-buffer (generate-new-buffer " *pomo-cat-break*")))
-                (pomo-cat--state-set :dedicated-buffer new-buffer)
-                new-buffer)))
-         (window (frame-root-window frame)))
-    (set-window-buffer window buffer)
-    (with-current-buffer buffer
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (if use-image
-            (progn
-              (insert-image img)
-              (when remaining-text
-                (insert "\n" remaining-text)))
-          (insert (pomo-cat--ascii-cat-display-text))))
-      (goto-char (point-min))
-      (setq-local cursor-type nil)
-      (setq-local mode-line-format nil)
-      (read-only-mode 1)
-      (set-window-point window (point-min))
-      (set-window-start window (point-min)))))
+  (with-selected-frame frame
+    (switch-to-buffer " *pomo-cat-break*")
+    (read-only-mode -1)
+    (erase-buffer)
+    (if use-image
+        (progn
+          (insert-image img)
+          (when remaining-text
+            (insert "\n" remaining-text)))
+      (insert (pomo-cat--ascii-cat-display-text)))
+    (goto-char (point-min))
+    (set-window-point (selected-window) (point-min))
+    (set-window-start (selected-window) (point-min))
+    (setq-local cursor-type nil)
+    (setq-local mode-line-format nil)
+    (read-only-mode 1)))
 
 (defun pomo-cat--apply-frame-geometry (frame geometry)
   "Apply GEOMETRY plist to FRAME."
@@ -555,10 +600,8 @@ REMAINING-TEXT is appended when non-nil."
          (when (eq pomo-cat-use-dedicated-frame 'topmost) 'above))
       (error nil))))
 
-(defun pomo-cat--dedicated-frame-screen-position
-    (frame-width-pixels frame-height-pixels)
-  "Calculate dedicated frame position.
-FRAME-WIDTH-PIXELS and FRAME-HEIGHT-PIXELS are pixel dimensions.
+(defun pomo-cat--dedicated-frame-screen-position (frame-width-pixels frame-height-pixels)
+  "Calculate dedicated frame screen position for given pixel dimensions.
 Returns a plist with `:left' and `:top'."
   (let* ((workarea (frame-monitor-workarea))
          (work-left (nth 0 workarea))
@@ -660,19 +703,18 @@ Displays image if available, otherwise falls back to ASCII art."
          (img nil))
     (when use-image
       (condition-case err
-          (setq img (create-image pomo-cat-cat-image-path)
-                use-image (and img t))
+          (setq img (pomo-cat--get-image))
         (error
          (setq use-image nil)
          (message "pomo-cat: Error preparing dedicated-frame image: %s"
                   (error-message-string err)))))
     (let* (
-         (geometry
-          (if use-image
-              (pomo-cat--calculate-frame-geometry-for-image img remaining-text)
-            (pomo-cat--calculate-frame-geometry
-             (pomo-cat--ascii-cat-display-text))))
-         (frame (pomo-cat--state-get :dedicated-frame)))
+           (geometry
+            (if use-image
+                (pomo-cat--calculate-frame-geometry-for-image img remaining-text)
+              (pomo-cat--calculate-frame-geometry
+               (pomo-cat--ascii-cat-display-text))))
+           (frame (pomo-cat--state-get :dedicated-frame)))
       (unless (and frame (frame-live-p frame))
         (setq frame (pomo-cat--create-dedicated-frame geometry))
         (pomo-cat--state-set :dedicated-frame frame))
@@ -681,46 +723,37 @@ Displays image if available, otherwise falls back to ASCII art."
       (pomo-cat--update-dedicated-frame-content frame use-image img remaining-text))))
 
 (defun pomo-cat--manage-frame-focus (frame)
-  "Raise FRAME and give it input focus."
+  "Manage focus behavior for FRAME according to `pomo-cat-get-focus'."
   (when (and frame (frame-live-p frame))
-    (when (fboundp 'raise-frame)
-      (raise-frame frame))
-    (condition-case nil
-        (select-frame-set-input-focus frame)
-      (error
-       (when (fboundp 'x-focus-frame)
-         (x-focus-frame frame))))))
+    (with-selected-frame frame
+      ;; Platform-specific focus control
+      (when (fboundp 'x-focus-frame)
+        (x-focus-frame frame))
+      (when (fboundp 'raise-frame)
+        (raise-frame frame)))
+    ;; Return focus based on settings
+    (unless pomo-cat-get-focus
+      (other-frame 0))))
 
 (defun pomo-cat--show-cat (&optional skip-focus-management)
   "Show a cat based on configuration and environment.
-When SKIP-FOCUS-MANAGEMENT is non-nil, do not alter frame focus.
 - If `pomo-cat-use-dedicated-frame' is non-nil and GUI: dedicated-frame
 - If image is configured and GUI: posframe with image
 - Otherwise: popon with ASCII art"
-  (condition-case err
-      (let ((focus-frame nil))
-        (cond
-         ;; Dedicated frame (GUI only)
-         ((and pomo-cat-use-dedicated-frame (display-graphic-p))
-          (pomo-cat--show-dedicated-frame)
-          (setq focus-frame (pomo-cat--state-get :dedicated-frame)))
-
-         ;; Posframe with image (GUI only, when image is configured)
-         ((pomo-cat--image-available-p)
-          (or (pomo-cat--show-image)
-              (pomo-cat--show-ascii-cat))
-          (setq focus-frame (selected-frame)))
-
-         ;; Default: ASCII cat (popon or fallback)
-         (t
-          (pomo-cat--show-ascii-cat)
-          (setq focus-frame (selected-frame))))
-        (when (and pomo-cat-get-focus
-                   (not skip-focus-management))
-          (pomo-cat--manage-frame-focus focus-frame)))
-    (error
-     (message "pomo-cat: Error showing cat: %s"
-              (error-message-string err)))))
+  (let ((dedicated-shown
+         (and pomo-cat-use-dedicated-frame
+              (display-graphic-p)
+              (pomo-cat--try-display
+               "dedicated frame" #'pomo-cat--show-dedicated-frame))))
+    (when (and dedicated-shown
+               pomo-cat-get-focus
+               (not skip-focus-management))
+      (pomo-cat--manage-frame-focus
+       (pomo-cat--state-get :dedicated-frame)))
+    (or dedicated-shown
+        (and (pomo-cat--image-available-p)
+             (pomo-cat--try-display "image" #'pomo-cat--show-image))
+        (pomo-cat--show-ascii-cat))))
 
 (defun pomo-cat--display-ticker-supported-p ()
   "Return non-nil when break display can be refreshed in-place."
@@ -732,14 +765,14 @@ When SKIP-FOCUS-MANAGEMENT is non-nil, do not alter frame focus.
 
 (defun pomo-cat--refresh-break-display ()
   "Refresh the visible break display countdown."
-  (if (not (pomo-cat--phase-active-p 'break))
+  (if (not (pomo-cat--state-get :in-break))
       (pomo-cat--cancel-display-ticker)
     (pomo-cat--show-cat t)))
 
 (defun pomo-cat--start-display-ticker ()
   "Start the 1-second break display refresh ticker."
   (pomo-cat--cancel-display-ticker)
-  (when (and (pomo-cat--phase-active-p 'break)
+  (when (and (pomo-cat--state-get :in-break)
              (pomo-cat--display-ticker-supported-p))
     (pomo-cat--state-set
      :display-ticker
@@ -756,18 +789,20 @@ When SKIP-FOCUS-MANAGEMENT is non-nil, do not alter frame focus.
               'long
             'short))
          (duration
-         (if (eq break-type 'long)
+          (if (eq break-type 'long)
               (pomo-cat--get-long-break-duration)
             (pomo-cat--get-break-duration))))
-    (pomo-cat--state-set :phase 'break)
     (pomo-cat--state-set :break-type break-type)
     (pomo-cat--state-set :in-break t)
+    (pomo-cat--state-set :phase 'break)
     (pomo-cat--state-set :phase-end-time
                          (time-add (current-time)
                                    (seconds-to-time duration)))
     (message "Break started! (%s break)" (symbol-name break-type))
     (pomo-cat--show-cat)
     (pomo-cat--start-display-ticker)
+    (when pomo-cat-get-focus
+      (other-frame 0))
     (pomo-cat--schedule-timer duration #'pomo-cat--start-work)))
 
 (defun pomo-cat--start-work ()
@@ -775,10 +810,12 @@ When SKIP-FOCUS-MANAGEMENT is non-nil, do not alter frame focus.
   (pomo-cat--clear-cat-display)
   (let ((new-count (1+ (or (pomo-cat--state-get :cycle-count) 0)))
         (duration (pomo-cat--get-work-duration)))
-    (pomo-cat--state-set :phase 'work)
     (pomo-cat--state-set :cycle-count new-count)
     (pomo-cat--state-set :in-break nil)
-    (pomo-cat--state-set :phase-end-time nil)
+    (pomo-cat--state-set :phase 'work)
+    (pomo-cat--state-set :phase-end-time
+                         (time-add (current-time)
+                                   (seconds-to-time duration)))
     (message "Pomodoro work #%d started!" new-count)
     (pomo-cat--schedule-timer duration #'pomo-cat--start-break)))
 
@@ -810,10 +847,15 @@ If SECONDS is negative, it is treated as 0."
       (prefix-numeric-value current-prefix-arg))))
   (if (not (pomo-cat--state-get :in-break))
       (message "pomo-cat: Not currently in a break.")
-    (let ((delay (pomo-cat--get-delay-break-seconds seconds)))
+    (let* ((raw-delay (if (null seconds)
+                          pomo-cat-delay-break-seconds
+                        seconds))
+           (delay
+            (pomo-cat--validate-nonnegative-integer
+             raw-delay "delay-break-seconds" 60)))
       (pomo-cat--clear-cat-display)
-      (pomo-cat--state-set :phase 'break-delayed)
       (pomo-cat--state-set :in-break nil) ; Mark as not in break during delay
+      (pomo-cat--state-set :phase 'break-delay)
       (pomo-cat--state-set :phase-end-time
                            (time-add (current-time)
                                      (seconds-to-time delay)))
@@ -835,28 +877,22 @@ If SECONDS is negative, it is treated as 0."
   (interactive)
   (let ((timer (pomo-cat--state-get :timer))
         (cycle (or (pomo-cat--state-get :cycle-count) 0))
+        (phase (pomo-cat--state-get :phase))
         (break-type (pomo-cat--state-get :break-type))
-        (phase (pomo-cat--phase)))
+        (remaining (pomo-cat--remaining-phase-seconds)))
     (if (not timer)
         (message "pomo-cat: Not running")
-      (message "pomo-cat: Cycle #%d, %s"
+      (message "pomo-cat: Cycle #%d, %s%s"
                cycle
                (pcase phase
                  ('break
                   (format "in %s break" (symbol-name break-type)))
-                 ('break-delayed
-                  (let ((remaining (pomo-cat--remaining-break-seconds)))
-                    (if (integerp remaining)
-                        (format "break delayed (%s until resume)"
-                                (pomo-cat--format-mmss remaining))
-                      "break delayed")))
-                 ('work "working")
-                 (_ "idle"))))))
-
-;;; Initialization
-
-;; Initialize state on load
-(pomo-cat--reset-state)
+                 ('break-delay "break delayed")
+                 (_ "working"))
+               (if (integerp remaining)
+                   (format ", %s remaining"
+                           (pomo-cat--format-mmss remaining))
+                 "")))))
 
 (provide 'pomo-cat)
 
